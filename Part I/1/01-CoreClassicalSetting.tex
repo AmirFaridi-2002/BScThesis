@@ -1,0 +1,480 @@
+\documentclass[11pt]{article}
+
+\usepackage[a4paper,margin=1in]{geometry}
+\usepackage{amsmath,amssymb,amsthm,mathtools,mathrsfs}
+\usepackage{braket,stmaryrd}
+\usepackage{enumitem}
+\usepackage{xcolor}
+
+\newcommand{\LL}{\mathcal{L}}
+\newcommand{\Tr}{\mathrm{tr}}
+\newcommand{\Id}{\mathbf{1}}
+\newcommand{\QO}{\mathrm{QO}}
+\newcommand{\sq}{\sqsubseteq}
+\newcommand{\den}[1]{\llbracket #1 \rrbracket}
+
+\newcommand{\Var}{\mathsf{Var}}
+\newcommand{\Val}{\mathsf{Val}}
+\newcommand{\AExp}{\mathsf{AExp}}
+\newcommand{\BExp}{\mathsf{BExp}}
+\newcommand{\Cmd}{\mathsf{Cmd}}
+
+\newcommand{\States}{\Sigma}
+\newcommand{\Pow}{\mathscr{P}}
+
+\newcommand{\post}{\operatorname{post}}
+\newcommand{\wlp}{\operatorname{wlp}}
+\newcommand{\Guard}{\operatorname{Guard}}
+\newcommand{\lfp}{\operatorname{lfp}}
+
+\newcommand{\IdRel}{\mathrm{Id}}
+\newcommand{\IdOn}[1]{\IdRel_{#1}}
+
+\newcommand{\spc}[2]{\operatorname{sp}_{#1}\!\left(#2\right)}
+
+\theoremstyle{plain}
+\newtheorem{theorem}{Theorem}[section]
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{claim}[theorem]{Claim}
+
+\theoremstyle{definition}
+\newtheorem{definition}[theorem]{Definition}
+
+\theoremstyle{remark}
+\newtheorem{remark}[theorem]{Remark}
+
+\newenvironment{mynote}
+    {\par\medskip\color{black!40}\footnotesize\itshape}
+    {\medskip\par}
+
+\setcounter{section}{0}
+\begin{document}
+
+\begin{center}
+{\Large Classical Foundations}\\[0.5em]
+\end{center}
+
+% ============================================================
+% Section 1: Core classical setting
+% ============================================================
+
+\section{Core classical setting}\label{sec:classical-core}
+
+\noindent Understanding quantum verification requires a firm grasp of classical program logic.
+Traditionally, Hoare Logic (HL) ensures correctness by using \textit{over-approximation}
+to prove the \textit{absence} of bugs. In contrast, the more recent
+\textbf{Incorrectness Logic (IL)} provides a dual framework:
+it uses \textit{under-approximation} to prove the \textit{presence} of bugs.
+
+Despite their differing goals, both logics are anchored in the same underlying mathematical
+meaning of a program. This section fixes the classical programming model that serves as the
+baseline for both correctness and reachability reasoning. By defining a formal semantics,
+we ensure that the ``meaning'' of a program remains consistent, whether we are proving it right
+or proving it wrong.
+
+Specifically, we develop this foundation through three complementary lenses:
+\begin{enumerate}[label=(\roman*)]
+  \item \textbf{Syntactic Foundation:} We introduce a standard \textit{while-language},
+  providing a minimalist yet computationally complete syntax for imperative programs.
+  \item \textbf{Relational Semantics:} We define the program's behavior using big-step
+  operational semantics. This allows us to treat a program as a mathematical relation
+  between initial and final states, capturing the transformation of the state space.
+  \item \textbf{Predicate Transformers:} We shift to a functional view of program meaning
+  via the \textit{post-image operator} (often termed the \textit{strongest postcondition}).
+  This view is particularly vital for Incorrectness Logic,
+  as it characterizes the set of states that are reachable from a given precondition.
+\end{enumerate}
+
+Throughout this section, we restrict our attention to a deterministic setting—where assignments,
+conditionals, and loops follow a unique execution path.
+This choice maintains clarity in the presentation of the classical proof rules and mirrors
+the core structures we will later generalize. As we transition to the quantum domain,
+these concepts of branching, iteration, and fixed-point semantics will reappear
+as the building blocks for reasoning about density matrices and super-operators.
+
+\subsection{Classical While-Language \& State Space}\label{sec:while-language}
+
+\begin{definition}[Variables, values, and states]
+Fix a countable set of program variables $\Var$ and a value domain
+$\Val$ (for concreteness, integers $\mathbb{Z}$).
+A \emph{state} is a total mapping
+\[
+  \States \;\triangleq\; \Var \to \Val.
+\]
+We write $\sigma \in \States$ for a state and $\sigma(x)$ for the value of
+variable $x$ in $\sigma$.
+State update is written $\sigma[x \mapsto v]$, meaning the state identical to
+$\sigma$ except that it maps $x$ to $v$.
+\end{definition}
+
+\begin{definition}[Expressions]
+Let $\AExp$ and $\BExp$ denote the sets of arithmetic and boolean expressions.
+A typical minimal grammar is:
+\[
+\begin{array}{rcl}
+a \in \AExp &::=& n \mid x \mid a_1 + a_2 \mid a_1 - a_2 \mid a_1 \cdot a_2 \\
+b \in \BExp &::=& \texttt{true} \mid \texttt{false} \mid a_1 = a_2 \mid a_1 \le a_2
+\mid \neg b \mid b_1 \wedge b_2 \mid b_1 \vee b_2 .
+\end{array}
+\]
+(Any standard expression language works; the specific operators are not crucial.)
+\end{definition}
+
+\begin{definition}[Commands]
+Commands of the while-language are generated by:
+\[
+\begin{array}{rcl}
+c \in \Cmd \;::=& \texttt{skip} \mid x := a \mid c_1;c_2 \mid
+\texttt{if } b \texttt{ then } c_1 \texttt{ else } c_2 \mid
+\texttt{while } b \texttt{ do } c.
+\end{array}
+\]
+Intuitively:
+\texttt{skip} does nothing, assignment updates a variable, 
+sequencing composes programs, conditionals branch on a boolean, and while-loops iterate.
+\end{definition}
+
+\begin{definition}[Expression evaluation]
+We assume standard total evaluation functions
+\[
+  \den{a} : \States \to \Val,
+  \qquad
+  \den{b} : \States \to \{\mathsf{tt},\mathsf{ff}\},
+\]
+defined inductively on the syntax of expressions (e.g. $\den{x}(\sigma)=\sigma(x)$,
+$\den{a_1+a_2}(\sigma)=\den{a_1}(\sigma)+\den{a_2}(\sigma)$,
+etc.).
+\end{definition}
+
+\subsection{Operational Semantics and Induced Relational Semantics}\label{sec:operational-relational}
+
+\begin{definition}[Big-step operational semantics]
+We define a big-step evaluation judgement
+\[
+  \langle c,\sigma\rangle \Downarrow \sigma'
+\]
+to mean: running command $c$ from initial state $\sigma$ terminates normally in
+final state $\sigma'$.
+Divergence (non-termination) is represented by the absence of any derivation
+of $\langle c,\sigma\rangle \Downarrow \sigma'$.
+\end{definition}
+
+\noindent The rules below define $\Downarrow$ inductively.
+
+\[
+\frac{}{ \langle \texttt{skip}, \sigma\rangle \Downarrow \sigma}
+\qquad \frac{}{ \langle x := a, \sigma\rangle \Downarrow \sigma[x \mapsto \den{a}(\sigma)]}
+\]
+
+\[
+\frac{ \langle c_1,\sigma\rangle \Downarrow \sigma_1 \qquad
+       \langle c_2,\sigma_1\rangle \Downarrow \sigma_2}
+     { \langle c_1;c_2,\sigma\rangle \Downarrow \sigma_2 }.
+\]
+
+\[
+\frac{ \den{b}(\sigma)=\mathsf{tt} \qquad \langle c_1,\sigma\rangle \Downarrow \sigma'}
+     { \langle \texttt{if } b \texttt{ then } c_1 \texttt{ else } c_2,\sigma\rangle \Downarrow \sigma'}
+\qquad
+\frac{ \den{b}(\sigma)=\mathsf{ff} \qquad \langle c_2,\sigma\rangle \Downarrow \sigma'}
+     { \langle \texttt{if } b \texttt{ then } c_1 \texttt{ else } c_2,\sigma\rangle \Downarrow \sigma'}.
+\]
+
+\[
+\frac{ \den{b}(\sigma)=\mathsf{ff}}
+     { \langle \texttt{while } b \texttt{ do } c,\sigma\rangle \Downarrow \sigma}
+\]
+
+\[
+\frac{ \den{b}(\sigma)=\mathsf{tt}
+       \qquad \langle c,\sigma\rangle \Downarrow \sigma_1
+       \qquad \langle \texttt{while } b \texttt{ do } c,\sigma_1\rangle \Downarrow \sigma_2}
+     { \langle \texttt{while } b \texttt{ do } c,\sigma\rangle \Downarrow \sigma_2}.
+\]
+
+These are the standard big-step rules: if the guard is false, the loop terminates
+immediately; if the guard is true, execute the body once and then iterate.
+
+In this simple language, evaluation is deterministic:
+for each $c$ and $\sigma$, there is at most one $\sigma'$ such that
+$\langle c,\sigma\rangle \Downarrow \sigma'$.
+This can be proved by a straightforward induction on derivations.
+This deterministic model will be extended to incorporate non-determinism
+when we establish the foundations of Incorrectness Logic.
+
+\subsection{Relational Semantics}\label{sec:relational-semantics}
+
+The big-step operational semantics defined in the previous section induces a \textit{relational} meaning for commands. Rather than focusing on the step-by-step derivation, we view a program as a mathematical object that relates input states to output states.
+
+\begin{definition}[Relational Meaning]
+The relational semantics of a command $c$, denoted by $\den{c}$, is a binary relation on states $\den{c} \subseteq \States \times \States$ defined by:
+\[
+\den{c} \;\triangleq\; \{ (\sigma, \sigma') \mid \langle c, \sigma \rangle \Downarrow \sigma' \}.
+\]
+We write $\sigma \den{c} \sigma'$ as shorthand for $(\sigma, \sigma') \in \den{c}$.
+\end{definition}
+
+In this view, the semantics of individual commands can be expressed directly as sets of state pairs:
+\[
+  \den{\texttt{skip}} = \{ (\sigma, \sigma) \mid \sigma \in \States \} = \IdOn{\States}.
+\]
+\[
+  \den{x := a} = \{ (\sigma, \sigma[x \mapsto \den{a}(\sigma)]) \mid \sigma \in \States \}.
+\]
+
+Let $\States_b = \{ \sigma \mid \den{b}(\sigma) = \mathsf{tt} \}$ and $\States_{\neg b} = \{ \sigma \mid \den{b}(\sigma) = \mathsf{ff} \}$. Then:
+\[
+  \den{\texttt{if } b \texttt{ then } c_1 \texttt{ else } c_2}
+  =
+  (\IdOn{\States_b} ; \den{c_1}) \cup (\IdOn{\States_{\neg b}} ; \den{c_2})
+\]
+where $\IdOn{S} \;\triangleq\; \{ (\sigma, \sigma) \mid \sigma \in S \}$ is the identity relation restricted to the set $S$.
+
+\paragraph{Determinism as Functionality.}
+Because the underlying language is deterministic, the relation $\den{c}$ is \textit{functional} (or a partial function): for every $\sigma$, there is at most one $\sigma'$ such that $\sigma \den{c} \sigma'$. This ensures that for any initial state, the program either diverges (no related $\sigma'$) or terminates in a unique state.
+
+\subsection{Compositional Properties}\label{sec:compositional-properties}
+
+A critical advantage of the relational view is its \textit{compositionality}. The meaning of a complex program can be constructed from the meanings of its components using standard relational algebra.
+
+\paragraph{Relational Composition.}
+Recall that for two relations $R_1, R_2 \subseteq \States \times \States$, their composition $R_1 ; R_2$ is defined as:
+\[
+  R_1 ; R_2 \;\triangleq\; \{ (\sigma, \sigma'') \mid \exists \sigma'.\, (\sigma, \sigma') \in R_1 \wedge (\sigma', \sigma'') \in R_2 \}.
+\]
+The semantics of sequential execution coincides exactly with this algebraic composition:
+\begin{equation}
+  \den{c_1; c_2} = \den{c_1} ; \den{c_2}.
+\end{equation}
+
+\paragraph{Iteration and Fixed Points.}
+The semantics of the \texttt{while} loop is more complex as it involves recursion. Relationally, $\den{\texttt{while } b \texttt{ do } c}$ is the smallest relation $R$ satisfying the following recursive equation:
+\[
+  R = (\IdOn{\States_{\neg b}}) \cup (\IdOn{\States_b} ; \den{c} ; R).
+\]
+Formally, we define the loop semantics as the limit of a sequence of relations representing finite unrollings:
+\begin{enumerate}[label=(\arabic*)]
+  \item $R_0 = \emptyset$ (no executions).
+  \item $R_{n+1} = (\IdOn{\States_{\neg b}}) \cup (\IdOn{\States_b} ; \den{c} ; R_n)$.
+\end{enumerate}
+Then $\den{\texttt{while } b \texttt{ do } c} = \bigcup_{n=0}^{\infty} R_n$. This construction establishes that a state pair is in the loop relation if and only if there exists some finite number of iterations $n$ that leads from the input to the output, terminating when the guard $b$ becomes false.
+\begin{mynote}
+TODO: Elaborate more on this. 
+\end{mynote}
+
+\paragraph{Monotonicity.}
+Relational composition is monotonic with respect to set inclusion. If $\den{c_1} \subseteq \den{c_1'}$, then $(\den{c_1} ; \den{c_2}) \subseteq (\den{c_1'} ; \den{c_2})$. This property is foundational for Incorrectness Logic, which relies on the fact that an \textit{under-approximation} of a command's relation results in a valid under-approximation of the composed program.
+
+\subsection{Predicates, post-images, and strongest postconditions}\label{sec:predicate-transformers}
+
+This subsection introduces the semantic object that will play the central role
+in both correctness and incorrectness reasoning: the \emph{post-image} (also known
+as the strongest postcondition).
+
+\begin{definition}[Predicates as sets of states]
+A (state) predicate is a set of states $P \subseteq \States$.
+Equivalently, one may write predicates as boolean-valued maps
+$P:\States \to \mathsf{Prop}$; these views are interchangeable.
+We write
+\[
+\sigma \models P \quad\text{to mean}\quad \sigma \in P.
+\]
+Logical connectives correspond to set operations:
+\[
+P \wedge Q \equiv P \cap Q,\qquad
+P \vee Q \equiv P \cup Q,\qquad
+\neg P \equiv \States \setminus P.
+\]
+\end{definition}
+
+\begin{definition}[The post-image transformer]
+Given a command $c$ and a set of initial states $P$, the \emph{post-image} of $P$
+under $c$ is the set of all states that can be reached by running $c$ from some
+initial state in $P$:
+\[
+\post_c(P)
+\;\triangleq\;
+\{\sigma' \in \States \mid \exists \sigma \in P.\; (\sigma,\sigma') \in \den{c}\}.
+\]
+In words, $\post_c(P)$ collects exactly the \emph{reachable final states} from $P$.
+When the command is clear from context, we write $\post(P)$. Note that this function is not computable, 
+as it can solve the Halting problem. We also may use $\post$ as a function:
+\[
+\post: \Cmd \times \Pow(\States) \to \Pow(\States) 
+\]
+\end{definition}
+
+\paragraph{Strongest postcondition.}
+In a deterministic, partial-correctness setting, the strongest postcondition
+coincides with the post-image:
+\[
+\spc{c}{P} \;\triangleq\; \post_c(P).
+\]
+The terminology ``strongest'' means that $\spc{c}{P}$ is the most precise
+postcondition that can follow from $P$ through $c$.
+
+\paragraph{Strongestness property.}
+A predicate $R$ is a \emph{postcondition} for $c$ from precondition $P$ if every
+terminating run from a $P$-state ends in an $R$-state, i.e.\ if $\post_c(P)\subseteq R$.
+Then $\spc{c}{P}$ is the smallest such $R$ (smallest by $\subseteq$).
+
+Formally, for any $R\subseteq \States$:
+\[
+\post_c(P) \subseteq R
+\quad\Longleftrightarrow\quad
+\forall \sigma\in P.\;\forall \sigma'.\;(\sigma,\sigma')\in\den{c} \Rightarrow \sigma'\in R.
+\]
+
+\paragraph{Basic properties of $\post_c$.}
+The operator $\post_c : \mathcal{P}(\States)\to \mathcal{P}(\States)$ is monotone:
+\[
+P \subseteq P' \;\Rightarrow\; \post_c(P) \subseteq \post_c(P').
+\]
+It also respects unions:
+\[
+\post_c\!\left(\bigcup_{i\in I} P_i\right) = \bigcup_{i\in I}\post_c(P_i).
+\]
+These facts are immediate from the existential definition of $\post_c$.
+
+\paragraph{Compositional equations for $\post_c$.}
+From the definition of relational semantics and relation composition one obtains:
+\[
+\post_{\texttt{skip}}(P)=P,
+\qquad
+\post_{c_1;c_2}(P)=\post_{c_2}(\post_{c_1}(P)).
+\]
+For conditionals, define the guard-truth set
+\[
+\Guard(b) \triangleq \{\sigma\in\States \mid \den{b}(\sigma)=\mathsf{tt}\} \quad 
+\Guard(\neg b) \triangleq \{\sigma\in\States \mid \den{b}(\sigma)=\mathsf{ff}\}
+\]
+Then
+\[
+\post_{\texttt{if } b \texttt{ then } c_1 \texttt{ else } c_2}(P)
+=
+\post_{c_1}(P \cap \Guard(b))
+\;\cup\;
+\post_{c_2}(P \cap \Guard(\neg b)).
+\]
+This explicitely displays how branching partitions the initial states.
+
+
+
+
+
+
+
+
+
+\paragraph{Post semantics for while as a least fixed point.}
+Fix $b$ and $c$. For $P \subseteq \States$, define the monotone functional
+\[
+H_{P}(X)
+\;\triangleq\;
+P
+\;\cup\;
+\post_{c}\bigl(X \cap \Guard(b)\bigr).
+\]
+Let
+\[
+X^\ast \;\triangleq\; \lfp(H_P).
+\]
+Intuitively, $X^\ast$ is the set of states reachable at the loop head (just
+before testing the guard), starting from $P$. Then the set of terminating final states of the loop from $P$ is
+\[
+\post_{\texttt{while } b \texttt{ do } c}(P)
+\;=\;
+X^\ast \cap \bigl(\Guard(\neg b)\bigr).
+\]
+
+Moreover, by Kleene iteration,
+\[
+X_0 \triangleq \emptyset,
+\qquad
+X_{n+1} \triangleq H_P(X_n)=P\cup \post_{c}\bigl(X_n\cap \Guard(b)\bigr),
+\qquad
+X^\ast=\bigcup_{n\ge 0}X_n,
+\]
+and therefore
+\[
+\post_{\texttt{while } b \texttt{ do } c}(P)
+\;=\;
+\left(\bigcup_{n\ge 0} X_n\right)\cap \bigl(\Guard(\neg b)\bigr).
+\]
+\begin{mynote}
+TODO: Integrate references to standard domain theory to justify the fixed-point
+ construction of the while-loop.
+\end{mynote}
+
+\begin{definition}[Weakest liberal precondition (for correctness reasoning)]
+Given a desired postcondition $Q\subseteq\States$, the \emph{weakest liberal
+precondition} of $c$ with respect to $Q$ is:
+\[
+\wlp(c,Q)
+\;\triangleq\;
+\{\sigma\in\States \mid \forall \sigma'.\;(\sigma,\sigma')\in\den{c} \Rightarrow \sigma'\in Q\}.
+\]
+This characterizes partial correctness: if $c$ terminates from $\sigma$, then
+the result satisfies $Q$.
+The term ``liberal'' emphasizes that non-termination is allowed: if $c$ does not
+terminate from $\sigma$, then $\sigma \in \wlp(c,Q)$ holds vacuously.
+\end{definition}
+
+\paragraph{Adjoint-style connection between $\post$ and $\wlp$.}
+The post-image and weakest liberal precondition are linked by the following
+equivalence:
+\[
+\post_c(P) \subseteq Q
+\quad\Longleftrightarrow\quad
+P \subseteq \wlp(c,Q).
+\]
+\emph{Proof.}
+($\Rightarrow$) Take $\sigma\in P$. For any $\sigma'$ with $(\sigma,\sigma')\in\den{c}$,
+we have $\sigma'\in\post_c(P)\subseteq Q$, hence $\sigma\in\wlp(c,Q)$.
+($\Leftarrow$) Take $\sigma'\in\post_c(P)$, so $\exists\sigma\in P$ with $(\sigma,\sigma')\in\den{c}$.
+Since $\sigma\in\wlp(c,Q)$, we obtain $\sigma'\in Q$.
+
+\paragraph{Correctness versus incorrectness as opposite inclusions.}
+Both Hoare Logic and Incorrectness Logic can be phrased using the same post-image
+operator.
+
+\begin{itemize}[leftmargin=1.5em]
+\item
+A (partial) Hoare triple $\{P\}\;c\;\{Q\}$ is semantically valid exactly when
+every terminating execution from $P$ ends in $Q$:
+\[
+\models \{P\}\,c\,\{Q\}
+\quad\Longleftrightarrow\quad
+\post_c(P) \subseteq Q
+\quad\Longleftrightarrow\quad
+P \subseteq \wlp(c,Q).
+\]
+This is an \emph{over-approximation} statement about reachable states.
+
+\item
+An incorrectness-style triple $[P]\;c\;[Q]$ (in its simplest reachability form)
+is semantically valid when every state in $Q$ is reachable as a terminating final
+state from some initial state in $P$:
+\[
+\models [P]\,c\,[Q]
+\quad\Longleftrightarrow\quad
+Q \subseteq \post_c(P).
+\]
+This is an \emph{under-approximation} statement: proving $Q\subseteq \post_c(P)$
+certifies genuine reachability (hence genuine bugs) with no false positives.
+\end{itemize}
+
+It is useful to keep the contrast visible:
+\[
+\text{Correctness: }\post_c(P) \subseteq Q
+\qquad\text{vs.}\qquad
+\text{Incorrectness: }Q \subseteq \post_c(P).
+\]
+This single semantic object $\post_c(P)$ (reachable final states from $P$) will
+therefore be the conceptual bridge between correctness reasoning and
+incorrectness reasoning, and it will later generalize to the quantum setting
+where $\post$ becomes a transformer on quantum states.
+
+% End of Section 1
+
+\end{document}
