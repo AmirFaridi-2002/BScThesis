@@ -1,0 +1,804 @@
+\documentclass[11pt]{article}
+
+\usepackage[a4paper,margin=1in]{geometry}
+\usepackage{amsmath,amssymb,amsthm,mathtools,mathrsfs}
+\usepackage{braket,stmaryrd}
+\usepackage{enumitem}
+\usepackage{xcolor}
+
+\newcommand{\LL}{\mathcal{L}}
+\newcommand{\Tr}{\mathrm{tr}}
+\newcommand{\Id}{\mathbf{1}}
+\newcommand{\QO}{\mathrm{QO}}
+\newcommand{\sq}{\sqsubseteq}
+\newcommand{\den}[1]{\llbracket #1 \rrbracket}
+
+\newcommand{\Var}{\mathsf{Var}}
+\newcommand{\Val}{\mathsf{Val}}
+\newcommand{\AExp}{\mathsf{AExp}}
+\newcommand{\BExp}{\mathsf{BExp}}
+\newcommand{\Cmd}{\mathsf{Cmd}}
+
+\newcommand{\States}{\Sigma}
+\newcommand{\Pow}{\mathscr{P}}
+
+\newcommand{\post}{\operatorname{post}}
+\newcommand{\wlp}{\operatorname{wlp}}
+\newcommand{\Guard}{\operatorname{Guard}}
+\newcommand{\lfp}{\operatorname{lfp}}
+
+\newcommand{\IdRel}{\mathrm{Id}}
+\newcommand{\IdOn}[1]{\IdRel_{#1}}
+
+\newcommand{\spc}[2]{\operatorname{sp}_{#1}\!\left(#2\right)}
+
+
+\theoremstyle{plain}
+\newtheorem{theorem}{Theorem}[section]
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{claim}[theorem]{Claim}
+
+\theoremstyle{definition}
+\newtheorem{definition}[theorem]{Definition}
+
+\theoremstyle{remark}
+\newtheorem{remark}[theorem]{Remark}
+
+\newenvironment{mynote}
+    {\par\medskip\color{black!40}\footnotesize\itshape}
+    {\medskip\par}
+
+\setcounter{section}{1}
+\begin{document}
+
+\begin{center}
+{\Large Classical Foundations}\\[0.5em]
+\end{center}
+
+% ============================================================
+% Section 2: Hoare Logic (HL)
+% ============================================================
+
+\section{Hoare Logic: how to use it and reason with it}\label{sec:HL}
+
+Hoare Logic is a proof system for establishing \emph{partial correctness} of
+imperative programs. Introduced by Tony Hoare in his influential 1969 paper
+\emph{``An Axiomatic Basis for Computer Programming''}, it provided one of the
+first compositional and mathematically rigorous frameworks for reasoning about
+program behaviour. A Hoare proof does not guarantee termination; rather, it
+guarantees that \emph{if} a program terminates, then the final state satisfies
+the desired postcondition. This distinction between partial and total correctness
+has played a central role in the development of modern program logics and
+predicate--transformer semantics.
+
+This section presents the meaning of Hoare triples, the standard proof rules for
+the while language we defined in Section~\ref{sec:while-language}, several
+representative examples illustrating backward reasoning, and a soundness proof
+with respect to the semantics fixed in Section~\ref{sec:classical-core}. In doing
+so, we follow the classical tradition initiated by Hoare and further developed by
+Floyd, Dijkstra, and many others in the foundations of program verification.
+
+
+\subsection{Hoare triples and partial correctness meaning}\label{sec:HL-meaning}
+
+\begin{definition}[Assertions]
+Assertions are predicates, i.e., sets of states $P,Q \subseteq \States$
+(Section~\ref{sec:predicate-transformers}). We write $\sigma \models P$ for
+$\sigma \in P$.
+
+We also use the usual logical notation ($\wedge,\vee,\neg,\Rightarrow$)
+as shorthand for the corresponding set-theoretic operations on assertions.
+\end{definition}
+
+
+\begin{definition}[Hoare triples]
+A Hoare triple has the form
+\[
+\{P\}\;c\;\{Q\},
+\]
+where $P$ is the precondition, $c$ is a command, and $Q$ is the postcondition.
+\end{definition}
+
+\begin{definition}[Partial correctness validity]
+We interpret Hoare triples using the relational semantics
+$\den{c} \subseteq \States\times\States$ from
+Section~\ref{sec:operational-relational}. The triple $\{P\}c\{Q\}$ is
+\emph{(partially) correct} if every terminating execution of $c$ starting from a
+state satisfying $P$ ends in a state satisfying $Q$:
+\[
+\models \{P\}\,c\,\{Q\}
+\quad\Longleftrightarrow\quad
+\forall \sigma,\sigma'.\;
+\bigl(\sigma \models P \wedge (\sigma,\sigma')\in \den{c} \bigr)
+\Rightarrow \sigma' \models Q.
+\]
+Equivalently, using the post-image operator $\post(c)(P)$:
+\[
+\models \{P\}\,c\,\{Q\}
+\quad\Longleftrightarrow\quad
+\post(c)(P) \subseteq Q.
+\]
+This is the ``over-approximation'' direction: all reachable final states from
+$P$ are contained in $Q$.
+\end{definition}
+
+\paragraph{Total correctness (not the focus here).}
+Total correctness strengthens partial correctness by additionally requiring
+termination from all $P$-states. Since our later discussion of incorrectness
+logic and quantum program logics is most naturally aligned with partial correctness, we focus on
+partial correctness in this thesis unless stated otherwise.
+
+\subsection{Proof rules}\label{sec:HL-rules}
+
+We present a standard Hoare system for the command language of
+Section~\ref{sec:while-language}. A judgment
+\[
+\vdash \{P\}\,c\,\{Q\}
+\]
+means that the Hoare triple is derivable in the proof system.
+
+\paragraph{Entailment and substitution (semantic).}
+For assertions $P,Q\subseteq\States$, we write $P \Rightarrow Q$ for semantic
+entailment, i.e.\ $P \subseteq Q$ (equivalently, $\forall\sigma.\ \sigma\models P \Rightarrow \sigma\models Q$).
+
+For an assertion $Q\subseteq\States$ and an arithmetic expression $a$,
+define the assertion $Q[x\leftarrow a]\subseteq\States$ by:
+\[
+Q[x\leftarrow a]
+\;\triangleq\;
+\{\sigma\in\States \mid \sigma[x \mapsto \den{a}(\sigma)] \models Q\}.
+\]
+Equivalently,
+\[
+\sigma \models Q[x \leftarrow a]
+\quad\Longleftrightarrow\quad
+\sigma[x \mapsto \den{a}(\sigma)] \models Q.
+\]
+
+
+\[
+\frac{}{ \vdash \{P\}\;\texttt{skip}\;\{P\}}
+\qquad\textsc{(Skip)}
+\qquad
+\frac{}{\vdash \{Q[x \leftarrow a]\}\;x := a\;\{Q\}}
+\qquad\textsc{(Assign)}
+\]
+
+\[
+\frac{\vdash \{P\}\;c_1\;\{R\}
+      \qquad
+      \vdash \{R\}\;c_2\;\{Q\}}
+     {\vdash \{P\}\;c_1;c_2\;\{Q\}}
+\qquad\textsc{(Seq)}
+\]
+
+\[
+\frac{\vdash \{P \wedge b\}\;c_1\;\{Q\}
+      \qquad
+      \vdash \{P \wedge \neg b\}\;c_2\;\{Q\}}
+     {\vdash \{P\}\;\texttt{if } b \texttt{ then } c_1 \texttt{ else } c_2\;\{Q\}}
+\qquad\textsc{(If)}
+\]
+
+\[
+\frac{\vdash \{I \wedge b\}\;c\;\{I\}}
+     {\vdash \{I\}\;\texttt{while } b \texttt{ do } c\;\{I \wedge \neg b\}}
+\qquad\textsc{(While)}
+\]
+
+\[
+\frac{P' \Rightarrow P
+      \qquad
+      \vdash \{P\}\;c\;\{Q\}
+      \qquad
+      Q \Rightarrow Q'}
+     {\vdash \{P'\}\;c\;\{Q'\}}
+\qquad\textsc{(Conseq)}
+\]
+
+
+The rules above form the standard Hoare Logic proof system for partial correctness.
+The \textsc{Skip} and \textsc{Assign} rules describe the effect of basic commands.
+In particular, the assignment rule relies on the substitution property stated above:
+to ensure a postcondition $Q$ after executing $x := a$, it suffices to require the
+precondition $Q[x \leftarrow a]$ beforehand. This is the essence of backward
+reasoning.
+
+The \textsc{Seq} rule expresses compositionality: correctness of $c_1;c_2$ follows
+from correctness of each component with a suitable intermediate assertion.
+The \textsc{If} rule splits reasoning along the two branches of the conditional,
+interpreting the guard $b$ as a state predicate via expression evaluation
+$\sigma \models b \triangleq \den{b}(\sigma)=\mathsf{tt}$.
+
+The \textsc{While} rule introduces a loop invariant $I$, which must hold initially
+and be preserved by the body whenever the guard is true. This captures inductive
+reasoning over an unbounded number of iterations.
+
+Finally, the \textsc{Conseq} rule allows strengthening preconditions and weakening
+postconditions, enabling the adjustment of assertions to fit the structure of a
+larger proof.
+
+
+
+\subsection{Worked examples (backward reasoning)}\label{sec:HL-examples}
+
+In the examples below, we intentionally keep programs small while showing the
+main proof patterns.
+
+
+\subsubsection{Example 1}
+
+Consider the program that enforces non-negativity: $ c \equiv \texttt{if }(x<0)\texttt{ then } x := -x \texttt{ else skip}. $
+We prove:
+$ \vdash \{\mathsf{true}\}\;c\;\{x \ge 0\}. $
+By \textsc{(If)}, it suffices to prove two branches:
+
+\paragraph{Then-branch.}
+Goal:
+$ \vdash \{x<0\}\;x:=-x\;\{x\ge 0\}. $
+By \textsc{(Assign)}, it suffices to show: \\
+$ x<0 \Rightarrow (x\ge 0)[x \leftarrow -x], $
+i.e.\ $x<0 \Rightarrow (-x \ge 0)$, which is valid over integers.
+
+\paragraph{Else-branch.}
+Goal:
+$ \vdash \{x\ge 0\}\;\texttt{skip}\;\{x\ge 0\}, $
+which follows from \textsc{(Skip)}.
+
+\paragraph{Conclusion.}
+Apply \textsc{(If)} and optionally \textsc{(Conseq)} (with $\mathsf{true}$ as the
+overall precondition) to conclude the result.
+
+\subsubsection{Example 2}
+
+We verify a standard loop that computes $1+\cdots+n$ for $n\ge 0$.
+Let the program be:
+\[
+c \equiv
+s := 0;\;
+i := 0;\;
+\texttt{while } (i<n)\texttt{ do }
+\bigl(i := i+1;\; s := s+i\bigr).
+\]
+We prove the partial correctness specification:
+\[
+\vdash \{n \ge 0\}\;c\;\{s = \tfrac{n(n+1)}{2}\}.
+\]
+
+\paragraph{Invariant choice.}
+A natural invariant relates $s$ and $i$ is as follows 
+(the intuition is after $i$ iterations, the program has accumulated $1+\cdots+i$):
+\[
+I \;\triangleq\; (0 \le i \le n)\;\wedge\; \left(s = \tfrac{i(i+1)}{2}\right).
+\]
+
+\paragraph{Stage 1: initialization establishes $I$.}
+After $s:=0;\;i:=0$, we want $I$.
+Using \textsc{(Seq)} twice and \textsc{(Assign)} backward:
+\begin{itemize}[leftmargin=1.5em]
+\item For $i:=0$, sufficient precondition is $I[i \leftarrow 0]$.
+\item For $s:=0$, sufficient precondition is $(I[i \leftarrow 0])[s \leftarrow 0]$.
+\end{itemize}
+Compute:
+\[
+I[i \leftarrow 0] \equiv (0 \le 0 \le n)\wedge \left(s=\tfrac{0\cdot 1}{2}\right)
+\equiv (0\le n)\wedge (s=0).
+\]
+Then
+\[
+(I[i \leftarrow 0])[s \leftarrow 0] \equiv (0\le n)\wedge (0=0),
+\]
+which is implied by $n\ge 0$. Hence
+\[
+\vdash \{n\ge 0\}\;s:=0;\;i:=0\;\{I\}.
+\]
+
+\paragraph{Stage 2: body preserves $I$.}
+Let the body be $d \equiv i:=i+1;\;s:=s+i$.
+We must prove:
+\[
+\vdash \{I \wedge i<n\}\;d\;\{I\}.
+\]
+Use \textsc{(Seq)} with an intermediate assertion $R$ after $i:=i+1$.
+A convenient choice is to ``update'' the summation index:
+\[
+R \triangleq
+(1 \le i \le n)\;\wedge\;\left(s=\tfrac{(i-1)i}{2}\right).
+\]
+This $R$ expresses that after incrementing $i$, $s$ is still the sum up to $i-1$.
+
+\emph{First subcommand:} prove $\vdash \{I \wedge i<n\}\;i:=i+1\;\{R\}$.
+By \textsc{(Assign)}, it suffices to show:
+\[
+(I \wedge i<n) \Rightarrow R[i \leftarrow i+1].
+\]
+Compute:
+\[
+R[i \leftarrow i+1]
+\equiv
+\bigl(1 \le i+1 \le n\bigr)\wedge\left(s=\tfrac{(i+1-1)(i+1)}{2}\right)
+\equiv
+\bigl(0 \le i < n\bigr)\wedge\left(s=\tfrac{i(i+1)}{2}\right).
+\]
+This is implied by $I \wedge i<n$.
+
+\emph{Second subcommand:} prove $\vdash \{R\}\;s:=s+i\;\{I\}$.
+By \textsc{(Assign)}, it suffices to show:
+\[
+R \Rightarrow I[s \leftarrow s+i].
+\]
+Compute:
+\[
+I[s \leftarrow s+i]
+\equiv
+(0 \le i \le n)\wedge\left(s+i=\tfrac{i(i+1)}{2}\right).
+\]
+From $R$ we have $1\le i \le n$ and $s=\tfrac{(i-1)i}{2}$, hence
+\[
+s+i = \tfrac{(i-1)i}{2} + i = \tfrac{(i-1)i+2i}{2}=\tfrac{i(i+1)}{2}.
+\]
+Also $1\le i$ implies $0\le i$. Thus $R \Rightarrow I[s \leftarrow s+i]$.
+
+Combining by \textsc{(Seq)}, we obtain $\vdash \{I\wedge i<n\}\;d\;\{I\}$.
+
+\paragraph{Stage 3: conclude postcondition at loop exit.}
+By \textsc{(While)}:
+\[
+\vdash \{I\}\;\texttt{while }(i<n)\texttt{ do } d\;\{I \wedge \neg(i<n)\}.
+\]
+At exit, $\neg(i<n)$ means $i\ge n$. Together with $I$ giving $i\le n$, we obtain
+$i=n$. Substituting into $I$ yields $s=\tfrac{n(n+1)}{2}$.
+Using \textsc{(Conseq)} to weaken the final postcondition, we conclude:
+\[
+\vdash \{I\}\;\texttt{while }(i<n)\texttt{ do } d\;\{s=\tfrac{n(n+1)}{2}\}.
+\]
+Finally, combine with initialization using \textsc{(Seq)} to derive:
+\[
+\vdash \{n\ge 0\}\;c\;\{s=\tfrac{n(n+1)}{2}\}.
+\]
+
+
+\subsection{Soundness of Hoare Logic}\label{sec:HL-soundness}
+
+We now prove that the proof system above is sound with respect to the
+operational/relational semantics of Section~\ref{sec:operational-relational}.
+Soundness means: if a triple is derivable syntactically, then it is valid
+semantically.
+
+\begin{theorem}[Soundness of Hoare Logic]\label{thm:HL-soundness}
+For all assertions $P,Q$ and commands $c$,
+\[
+\vdash \{P\}\,c\,\{Q\}
+\quad\Longrightarrow\quad
+\models \{P\}\,c\,\{Q\}.
+\]
+\end{theorem}
+
+\begin{proof}
+By induction on the derivation of $\vdash \{P\}\,c\,\{Q\}$.
+We consider each last rule used.
+
+\paragraph{Case \textsc{(Skip)}.}
+We must show $\models \{P\}\,\texttt{skip}\,\{P\}$.
+Take any $\sigma,\sigma'$ with $\sigma\models P$ and $(\sigma,\sigma')\in\den{\texttt{skip}}$.
+By definition of $\den{\texttt{skip}}$, we have $\sigma'=\sigma$.
+Hence $\sigma'\models P$.
+
+\paragraph{Case \textsc{(Assign)}.}
+The derivation ends with
+\[
+\vdash \{Q[x \leftarrow a]\}\;x := a\;\{Q\}.
+\]
+We show $\models \{Q[x \leftarrow a]\}\;x:=a\;\{Q\}$.
+Let $\sigma\models Q[x \leftarrow a]$ and suppose $(\sigma,\sigma')\in\den{x:=a}$.
+By the semantics of assignment,
+\[
+\sigma' = \sigma[x \mapsto \den{a}(\sigma)].
+\]
+By the defining property of substitution,
+$\sigma \models Q[x \leftarrow a]$ implies
+$\sigma' \models Q$. This proves validity.
+
+\paragraph{Case \textsc{(Seq)}.}
+The derivation ends with:
+\[
+\frac{\vdash \{P\}\;c_1\;\{R\}\qquad \vdash \{R\}\;c_2\;\{Q\}}
+     {\vdash \{P\}\;c_1;c_2\;\{Q\}}.
+\]
+By IH, $\models \{P\}\,c_1\,\{R\}$ and $\models \{R\}\,c_2\,\{Q\}$.
+Take $\sigma\models P$ and $(\sigma,\sigma')\in\den{c_1;c_2}$.
+By relational composition, there exists $\sigma_1$ such that
+$(\sigma,\sigma_1)\in\den{c_1}$ and $(\sigma_1,\sigma')\in\den{c_2}$.
+From $\models \{P\}\,c_1\,\{R\}$ we get $\sigma_1\models R$; then from
+$\models \{R\}\,c_2\,\{Q\}$ we get $\sigma'\models Q$. Hence
+$\models \{P\}\,c_1;c_2\,\{Q\}$.
+
+\paragraph{Case \textsc{(If)}.}
+The derivation ends with:
+\[
+\frac{\vdash \{P \wedge b\}\;c_1\;\{Q\}\qquad \vdash \{P \wedge \neg b\}\;c_2\;\{Q\}}
+     {\vdash \{P\}\;\texttt{if } b \texttt{ then } c_1 \texttt{ else } c_2\;\{Q\}}.
+\]
+By IH, both premises are semantically valid.
+Take $\sigma\models P$ and $(\sigma,\sigma')\in\den{\texttt{if }b\texttt{ then }c_1\texttt{ else }c_2}$.
+By the big-step semantics, either $\den{b}(\sigma)=\mathsf{tt}$ and
+$(\sigma,\sigma')\in\den{c_1}$, or $\den{b}(\sigma)=\mathsf{ff}$ and
+$(\sigma,\sigma')\in\den{c_2}$.
+In the first case, $\sigma\models P\wedge b$, hence $\sigma'\models Q$ by IH.
+In the second case, $\sigma\models P\wedge \neg b$, hence $\sigma'\models Q$ by IH.
+Thus the conditional rule is sound.
+
+\paragraph{Case \textsc{(Conseq)}.}
+The derivation ends with:
+\[
+\frac{P' \Rightarrow P \qquad \vdash \{P\}\;c\;\{Q\} \qquad Q \Rightarrow Q'}
+     {\vdash \{P'\}\;c\;\{Q'\}}.
+\]
+By IH, $\models \{P\}\,c\,\{Q\}$.
+Let $\sigma\models P'$ and $(\sigma,\sigma')\in\den{c}$.
+Since $P'\Rightarrow P$, we have $\sigma\models P$, so $\sigma'\models Q$ by validity.
+Since $Q\Rightarrow Q'$, we get $\sigma'\models Q'$. Hence $\models \{P'\}\,c\,\{Q'\}$.
+
+\paragraph{Case \textsc{(While)}.}
+The derivation ends with:
+\[
+\frac{\vdash \{I \wedge b\}\;c\;\{I\}}
+     {\vdash \{I\}\;\texttt{while } b \texttt{ do } c\;\{I \wedge \neg b\}}.
+\]
+By IH, $\models \{I \wedge b\}\,c\,\{I\}$.
+We show $\models \{I\}\,\texttt{while }b\texttt{ do }c\,\{I\wedge \neg b\}$.
+
+Take any $\sigma,\sigma'$ such that $\sigma\models I$ and
+$\langle \texttt{while }b\texttt{ do }c,\sigma\rangle \Downarrow \sigma'$.
+We prove $\sigma'\models I\wedge \neg b$ by induction on the given
+big-step derivation of the loop.
+
+\emph{Base (guard false).}
+If the derivation ends with the rule
+\[
+\frac{\den{b}(\sigma)=\mathsf{ff}}
+{\langle \texttt{while } b \texttt{ do } c,\sigma\rangle \Downarrow \sigma},
+\]
+then $\sigma'=\sigma$. Since $\sigma\models I$ and $\den{b}(\sigma)=\mathsf{ff}$,
+we have $\sigma'\models I\wedge \neg b$.
+
+\emph{Step (guard true).}
+Otherwise the derivation ends with
+\[
+\frac{ \den{b}(\sigma)=\mathsf{tt}
+       \quad \langle c,\sigma\rangle \Downarrow \sigma_1
+       \quad \langle \texttt{while } b \texttt{ do } c,\sigma_1\rangle \Downarrow \sigma_2}
+     { \langle \texttt{while } b \texttt{ do } c,\sigma\rangle \Downarrow \sigma_2}.
+\]
+Here $\sigma'=\sigma_2$. Since $\sigma\models I$ and the guard is true, we have
+$\sigma \models I\wedge b$. Also $(\sigma,\sigma_1)\in\den{c}$.
+By $\models \{I\wedge b\}\,c\,\{I\}$ we obtain $\sigma_1\models I$.
+Now apply the induction hypothesis to the sub-derivation
+$\langle \texttt{while } b \texttt{ do } c,\sigma_1\rangle \Downarrow \sigma_2$
+to conclude $\sigma_2\models I\wedge \neg b$.
+Thus $\sigma'\models I\wedge \neg b$.
+
+This establishes $\models \{I\}\,\texttt{while }b\texttt{ do }c\,\{I\wedge \neg b\}$.
+
+\paragraph{Conclusion.}
+All cases preserve semantic validity, so the theorem follows.
+\end{proof}
+
+\paragraph{Remark.}
+Soundness is the foundational guarantee that Hoare proofs are trustworthy with
+respect to the chosen semantics. In later chapters, we will mirror this pattern
+for incorrectness logic and for quantum program logics: define a semantics first,
+state a proof system, and then prove that every rule is semantics-preserving.
+
+
+\subsection{Completeness of Hoare Logic (relative completeness)}\label{sec:HL-completeness}
+
+Soundness alone does not guarantee that the proof system is expressive enough:
+a semantically valid triple might still be non-derivable due to limitations of
+the proof rules or the assertion language.
+Completeness addresses this concern.
+
+
+\paragraph{Why ``relative'' completeness?}
+Hoare Logic reasons about program states using an \emph{assertion language}
+(e.g.\ first-order arithmetic over integers). Since this assertion language is
+necessarily limited in expressive power, one cannot hope for an
+\emph{unconditional} completeness theorem: if the assertion language is too
+weak to express certain semantic properties of programs, then no proof system
+can derive all valid Hoare triples. This limitation was already observed in
+early work by Floyd, Hoare, and later formalized by Cook, who showed that full
+completeness would imply solving undecidable problems.
+
+For this reason, completeness results for Hoare Logic are stated in a
+\emph{relative} form. A proof system is said to be relatively complete if,
+\emph{assuming} the assertion language is expressive enough to describe weakest
+preconditions (or equivalently, strongest postconditions) and to prove all valid
+implications between assertions, then every semantically valid Hoare triple is
+derivable in the proof system. In other words, the only source of incompleteness
+comes from the expressive limitations of the assertion language, not from the
+rules of Hoare Logic itself. A standard reference for this result is Cook's 
+relative completeness theorem for Hoare logic.
+
+
+\subsubsection{Expressiveness assumptions on the assertion logic}\label{sec:HL-assertion-logic}
+
+Let $\vdash_{\mathcal{A}} \varphi$ denote provability in the underlying assertion
+logic $\mathcal{A}$ (e.g.\ Peano arithmetic, or any sufficiently strong theory).
+We assume:
+\begin{enumerate}[label=(\arabic*)]
+\item (\emph{Soundness of assertions}) If $\vdash_{\mathcal{A}} \varphi$ then
+$\varphi$ is true in the intended model of states.
+\item (\emph{Sufficient expressiveness}) For each command $c$ and assertion $Q$,
+the predicate $\wlp(c,Q)$ is expressible in the assertion language.
+That is, there exists a formula (assertion) also written $\wlp(c,Q)$ such that
+for all states $\sigma$,
+\[
+\sigma \models \wlp(c,Q)
+\quad\Longleftrightarrow\quad
+\forall \sigma'.\; (\sigma,\sigma')\in\den{c} \Rightarrow \sigma'\models Q.
+\]
+(For a while-language, this is a non-trivial assumption; it is exactly what
+relative completeness isolates.)
+\item (\emph{Ability to prove needed implications}) Whenever $P \subseteq P'$ as
+sets of states, the implication $P \Rightarrow P'$ is derivable in
+$\mathcal{A}$, and similarly for postconditions.
+\end{enumerate}
+
+\subsubsection{A completeness theorem via weakest liberal preconditions}\label{sec:HL-completeness-wlp}
+
+The next theorem is the standard form of relative completeness for partial
+correctness of a while-language.
+
+\begin{theorem}[Relative completeness of Hoare Logic]\label{thm:HL-relative-completeness}
+Assume the assertion logic $\mathcal{A}$ can express and reason about weakest
+liberal preconditions as in Section~\ref{sec:HL-assertion-logic}.
+Then for all assertions $P,Q$ and commands $c$,
+\[
+\models \{P\}\,c\,\{Q\}
+\quad\Longrightarrow\quad
+\vdash \{P\}\,c\,\{Q\}.
+\]
+\end{theorem}
+
+\begin{proof}
+Fix $P,Q,c$ and assume $\models \{P\}\,c\,\{Q\}$.
+By the equivalence from Section~\ref{sec:predicate-transformers},
+\[
+\models \{P\}\,c\,\{Q\}
+\quad\Longleftrightarrow\quad
+P \subseteq \wlp(c,Q).
+\]
+By the ``ability to prove needed implications'' assumption on $\mathcal{A}$,
+we may treat $P \Rightarrow \wlp(c,Q)$ as an available (provable) implication.
+
+It therefore suffices to show the following \emph{key lemma}:
+\[
+\vdash \{\wlp(c,Q)\}\,c\,\{Q\}.
+\]
+Indeed, once this lemma holds, we obtain the desired triple
+$\vdash \{P\}\,c\,\{Q\}$ by a single application of \textsc{(Conseq)}:
+\[
+\frac{P \Rightarrow \wlp(c,Q)\qquad
+      \vdash \{\wlp(c,Q)\}\,c\,\{Q\}\qquad
+      Q \Rightarrow Q}
+     {\vdash \{P\}\,c\,\{Q\}}.
+\]
+
+\paragraph{Proof of the key lemma.}
+We prove $\vdash \{\wlp(c,Q)\}\,c\,\{Q\}$ by structural induction on the command $c$.
+The interesting cases are those that align with the Hoare rules:
+
+\begin{itemize}[leftmargin=1.5em]
+\item \textbf{Case $c=\texttt{skip}$.}
+We have $\wlp(\texttt{skip},Q)=Q$. Then
+$\vdash \{Q\}\,\texttt{skip}\,\{Q\}$ by \textsc{(Skip)}.
+
+\item \textbf{Case $c=(x:=a)$.}
+One shows that $\wlp(x:=a,Q)$ is equivalent to the substitution $Q[x\leftarrow a]$.
+Formally, for all $\sigma$,
+\[
+\sigma\models \wlp(x:=a,Q)
+\Longleftrightarrow
+\sigma[x\mapsto \den{a}(\sigma)] \models Q
+\Longleftrightarrow
+\sigma \models Q[x\leftarrow a].
+\]
+Hence $\wlp(x:=a,Q)\equiv Q[x\leftarrow a]$, and
+$\vdash \{Q[x\leftarrow a]\}\;x:=a\;\{Q\}$ follows from \textsc{(Assign)}.
+
+\item \textbf{Case $c=(c_1;c_2)$.}
+Let $R \triangleq \wlp(c_2,Q)$.
+Then, by standard properties of $\wlp$,
+\[
+\wlp(c_1;c_2,Q) = \wlp(c_1, \wlp(c_2,Q)) = \wlp(c_1,R).
+\]
+By IH applied to $c_1$ with postcondition $R$, we have
+$\vdash \{\wlp(c_1,R)\}\;c_1\;\{R\}$.
+By IH applied to $c_2$ with postcondition $Q$, we have
+$\vdash \{R\}\;c_2\;\{Q\}$.
+Then \textsc{(Seq)} yields
+\[
+\vdash \{\wlp(c_1;c_2,Q)\}\;c_1;c_2\;\{Q\}.
+\]
+
+\item \textbf{Case $c=\texttt{if }b\texttt{ then }c_1\texttt{ else }c_2$.}
+For partial correctness, $\wlp$ satisfies:
+\[
+\wlp(\texttt{if }b\texttt{ then }c_1\texttt{ else }c_2, Q)
+=
+(b \wedge \wlp(c_1,Q)) \;\vee\; (\neg b \wedge \wlp(c_2,Q)).
+\]
+By IH we have
+$\vdash \{\wlp(c_1,Q)\}\,c_1\,\{Q\}$ and
+$\vdash \{\wlp(c_2,Q)\}\,c_2\,\{Q\}$.
+Using \textsc{(Conseq)} we strengthen preconditions to $b\wedge\wlp(c_1,Q)$
+and $\neg b\wedge\wlp(c_2,Q)$, respectively, and then apply \textsc{(If)} to obtain
+\[
+\vdash \{\wlp(\texttt{if }b\texttt{ then }c_1\texttt{ else }c_2, Q)\}\;
+\texttt{if }b\texttt{ then }c_1\texttt{ else }c_2\;\{Q\}.
+\]
+
+
+
+
+
+
+
+
+
+
+
+
+\item \textbf{Case $c=\texttt{while }b\texttt{ do }d$.}
+Let
+\[
+I \;\triangleq\; \wlp(\texttt{while }b\texttt{ do }d, Q).
+\]
+For partial correctness, $\wlp$ of a while-loop is characterized as the
+\emph{greatest fixed point} (why?) of the monotone functional
+\[
+F(X) \;\triangleq\; (\neg b \Rightarrow Q)\ \wedge\ (b \Rightarrow \wlp(d,X)).
+\]
+(See the fixed-point characterization of $\wlp$ for \texttt{while} in
+Section~\ref{sec:predicate-transformers}.)
+In particular, $I$ satisfies the unfolding law
+\[
+I \;\Rightarrow\; F(I),
+\]
+so we may extract the two consequences:
+\begin{align}
+&I \wedge \neg b \Rightarrow Q, \label{eq:while-wlp-exit}\\
+&I \wedge b \Rightarrow \wlp(d,I). \label{eq:while-wlp-step}
+\end{align}
+
+Now we derive the Hoare triple for the loop.
+
+By the induction hypothesis applied to the body $d$ with postcondition $I$, we have
+\[
+\vdash \{\wlp(d,I)\}\;d\;\{I\}.
+\]
+Using \textsc{(Conseq)} together with~\eqref{eq:while-wlp-step}, we strengthen the
+precondition to obtain
+\[
+\vdash \{I \wedge b\}\;d\;\{I\}.
+\]
+
+From the previous line, \textsc{(While)} yields
+\[
+\vdash \{I\}\;\texttt{while }b\texttt{ do }d\;\{I \wedge \neg b\}.
+\]
+
+Finally, by \textsc{(Conseq)} and~\eqref{eq:while-wlp-exit}, we weaken the
+postcondition:
+\[
+\vdash \{I\}\;\texttt{while }b\texttt{ do }d\;\{Q\}.
+\]
+
+Since $I \equiv \wlp(\texttt{while }b\texttt{ do }d, Q)$ by definition, this is
+exactly the required instance of the key lemma for the while-case.
+\end{itemize}
+
+
+Therefore, in all cases, $\vdash \{\wlp(c,Q)\}\,c\,\{Q\}$ holds, completing the
+key lemma and hence the theorem.
+\end{proof}
+
+\paragraph{Optional viewpoint: completeness via strongest postconditions.}
+Using the post-image transformer $\post(c)(P)$ from
+Section~\ref{sec:predicate-transformers}, partial correctness validity is
+$\post(c)(P)\subseteq Q$. If the assertion language can express $\post(c)(P)$ (as a
+strongest postcondition) and reason about set inclusions, then completeness can
+alternatively be presented as: whenever $\post(c)(P)\subseteq Q$ holds
+semantically, one can derive $\vdash \{P\}\,c\,\{Q\}$ by expressing the
+intermediate strongest postconditions of subcommands and applying \textsc{(Seq)}
+and \textsc{(Conseq)} accordingly. This is essentially dual to the $\wlp$-based
+proof above: $\wlp$ supports backward reasoning, while $\post$ supports
+forward reasoning.
+
+\subsection{Why Hoare Logic does not directly support bug-catching}\label{sec:HL-not-bug-catching}
+
+Hoare Logic is a logic of \emph{universal} guarantees: it proves that \emph{all}
+terminating executions from $P$ end in states satisfying $Q$.
+Bug-catching, however, is often an \emph{existential} task: show that there
+exists an execution (or there exists a reachable bad state) witnessing a bug.
+
+\paragraph{The mismatch: negating a Hoare triple.}
+It is tempting to think that to show a program can reach a ``bad'' state
+$\neg Q$ from a precondition $P$, one could try to negate a correctness claim.
+However,
+\[
+\neg\bigl(\models \{P\}\,c\,\{Q\}\bigr)
+\quad\not\equiv\quad
+\models \{P\}\,c\,\{\neg Q\}.
+\]
+To see why, expand the semantics:
+\[
+\models \{P\}\,c\,\{Q\}
+\;\;\Longleftrightarrow\;\;
+\forall \sigma,\sigma'.\;
+\bigl(\sigma\models P \wedge (\sigma,\sigma')\in\den{c}\bigr)
+\Rightarrow \sigma'\models Q.
+\]
+Negating this statement yields:
+\[
+\neg(\models \{P\}\,c\,\{Q\})
+\;\;\Longleftrightarrow\;\;
+\exists \sigma,\sigma'.\;
+\bigl(\sigma\models P \wedge (\sigma,\sigma')\in\den{c} \wedge \sigma'\not\models Q\bigr).
+\]
+Thus, $\neg(\models \{P\}\,c\,\{Q\})$ means \emph{there exists} a terminating run
+from some $P$-state reaching a state that violates $Q$.
+This is precisely an existential reachability statement.
+
+But $\models \{P\}\,c\,\{\neg Q\}$ means:
+\[
+\forall \sigma,\sigma'.\;
+\bigl(\sigma\models P \wedge (\sigma,\sigma')\in\den{c}\bigr)
+\Rightarrow \sigma'\models \neg Q,
+\]
+i.e.\ \emph{all} terminating executions from $P$ end in states violating $Q$.
+This is a much stronger statement and is rarely what one wants when looking for
+bugs.
+
+\paragraph{Set-theoretic view.}
+Using the post-image operator:
+\[
+\models \{P\}\,c\,\{Q\}
+\Longleftrightarrow
+\post(c)(P) \subseteq Q.
+\]
+Negating it gives
+\[
+\neg(\post(c)(P)\subseteq Q)
+\Longleftrightarrow
+\exists \sigma'\in \post(c)(P).\;\sigma'\notin Q
+\Longleftrightarrow
+\post(c)(P)\cap (\States\setminus Q)\neq \emptyset,
+\]
+which again expresses existence of a reachable bad state.
+In contrast,
+\[
+\models \{P\}\,c\,\{\neg Q\}
+\Longleftrightarrow
+\post(c)(P)\subseteq (\States\setminus Q),
+\]
+which says all reachable states are bad.
+
+Incorrectness Logic is designed to capture existential reachability
+\emph{directly} in the logic, without encoding existential claims indirectly via
+negation of universal ones. In particular, the core incorrectness judgment will
+validate statements of the form
+\[
+Q \subseteq \post(c)(P),
+\]
+meaning every state in $Q$ is genuinely reachable from some state in $P$.
+This under-approximation style supports bug-catching with ``no false positives'':
+deriving such a judgment certifies the existence of concrete executions that
+reach the asserted outcomes.
+
+In the quantum setting, a similar mismatch becomes even more pronounced because
+negation of a correctness statement interacts subtly with probabilistic
+branching and mixed states. This motivates a dedicated quantum incorrectness
+logic rather than relying on negated quantum Hoare-style specifications.
+
+\end{document}
