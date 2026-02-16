@@ -272,12 +272,12 @@ in both correctness and incorrectness reasoning: the \emph{post-image} (also kno
 as the strongest postcondition).
 
 \begin{definition}[Predicates as sets of states]
-A (state) predicate is a set of states $P \subseteq \States$.
+A predicate is a set of states $P \subseteq \States$.
 Equivalently, one may write predicates as boolean-valued maps
 $P:\States \to \mathsf{Prop}$; these views are interchangeable.
 We write
 \[
-\sigma \models P \quad\text{to mean}\quad \sigma \in P.
+\sigma \models P \quad\text{to mean}\quad \sigma \in P \quad\text{(i.e. $\sigma$ satisfies predicate $P$)}.
 \]
 Logical connectives correspond to set operations:
 \[
@@ -292,11 +292,11 @@ Given a command $c$ and a set of initial states $P$, the \emph{post-image} of $P
 under $c$ is the set of all states that can be reached by running $c$ from some
 initial state in $P$:
 \[
-\post_c(P)
+\post(c)(P)
 \;\triangleq\;
 \{\sigma' \in \States \mid \exists \sigma \in P.\; (\sigma,\sigma') \in \den{c}\}.
 \]
-In words, $\post_c(P)$ collects exactly the \emph{reachable final states} from $P$.
+In words, $\post(c)(P)$ collects exactly the \emph{reachable final states} from $P$ (upon termination).
 When the command is clear from context, we write $\post(P)$. Note that this function is not computable, 
 as it can solve the Halting problem. We also may use $\post$ as a function:
 \[
@@ -308,40 +308,40 @@ as it can solve the Halting problem. We also may use $\post$ as a function:
 In a deterministic, partial-correctness setting, the strongest postcondition
 coincides with the post-image:
 \[
-\spc{c}{P} \;\triangleq\; \post_c(P).
+\spc{c}{P} \;\triangleq\; \post(c)(P).
 \]
 The terminology ``strongest'' means that $\spc{c}{P}$ is the most precise
 postcondition that can follow from $P$ through $c$.
 
 \paragraph{Strongestness property.}
 A predicate $R$ is a \emph{postcondition} for $c$ from precondition $P$ if every
-terminating run from a $P$-state ends in an $R$-state, i.e.\ if $\post_c(P)\subseteq R$.
+terminating run from a $P$-state ends in an $R$-state, i.e.\ if $\post(c)(P)\subseteq R$.
 Then $\spc{c}{P}$ is the smallest such $R$ (smallest by $\subseteq$).
 
 Formally, for any $R\subseteq \States$:
 \[
-\post_c(P) \subseteq R
+\post(c)(P) \subseteq R
 \quad\Longleftrightarrow\quad
 \forall \sigma\in P.\;\forall \sigma'.\;(\sigma,\sigma')\in\den{c} \Rightarrow \sigma'\in R.
 \]
 
-\paragraph{Basic properties of $\post_c$.}
-The operator $\post_c : \mathcal{P}(\States)\to \mathcal{P}(\States)$ is monotone:
+\paragraph{Basic properties of $\post(c)$.}
+The operator $\post(c) : \mathcal{P}(\States)\to \mathcal{P}(\States)$ is monotone:
 \[
-P \subseteq P' \;\Rightarrow\; \post_c(P) \subseteq \post_c(P').
+P \subseteq P' \;\Rightarrow\; \post(c)(P) \subseteq \post(c)(P').
 \]
 It also respects unions:
 \[
-\post_c\!\left(\bigcup_{i\in I} P_i\right) = \bigcup_{i\in I}\post_c(P_i).
+\post(c)\!\left(\bigcup_{i\in I} P_i\right) = \bigcup_{i\in I}\post(c)(P_i).
 \]
-These facts are immediate from the existential definition of $\post_c$.
+These facts are immediate from the existential definition of $\post(c)$.
 
-\paragraph{Compositional equations for $\post_c$.}
+\paragraph{Compositional equations for $\post(c)$.}
 From the definition of relational semantics and relation composition one obtains:
 \[
-\post_{\texttt{skip}}(P)=P,
+\post(\texttt{skip})(P)=P,
 \qquad
-\post_{c_1;c_2}(P)=\post_{c_2}(\post_{c_1}(P)).
+\post(c_1;c_2)(P)=\post(c_2)(\post(c_1)(P)).
 \]
 For conditionals, define the guard-truth set
 \[
@@ -350,11 +350,11 @@ For conditionals, define the guard-truth set
 \]
 Then
 \[
-\post_{\texttt{if } b \texttt{ then } c_1 \texttt{ else } c_2}(P)
+\post(\texttt{if } b \texttt{ then } c_1 \texttt{ else } c_2)(P)
 =
-\post_{c_1}(P \cap \Guard(b))
+\post(c_1)(P \cap \Guard(b))
 \;\cup\;
-\post_{c_2}(P \cap \Guard(\neg b)).
+\post(c_2)(P \cap \Guard(\neg b)).
 \]
 This explicitely displays how branching partitions the initial states.
 
@@ -373,7 +373,7 @@ H_{P}(X)
 \;\triangleq\;
 P
 \;\cup\;
-\post_{c}\bigl(X \cap \Guard(b)\bigr).
+\post(c)\bigl(X \cap \Guard(b)\bigr).
 \]
 Let
 \[
@@ -382,7 +382,7 @@ X^\ast \;\triangleq\; \lfp(H_P).
 Intuitively, $X^\ast$ is the set of states reachable at the loop head (just
 before testing the guard), starting from $P$. Then the set of terminating final states of the loop from $P$ is
 \[
-\post_{\texttt{while } b \texttt{ do } c}(P)
+\post(\texttt{while } b \texttt{ do } c)(P)
 \;=\;
 X^\ast \cap \bigl(\Guard(\neg b)\bigr).
 \]
@@ -391,13 +391,13 @@ Moreover, by Kleene iteration,
 \[
 X_0 \triangleq \emptyset,
 \qquad
-X_{n+1} \triangleq H_P(X_n)=P\cup \post_{c}\bigl(X_n\cap \Guard(b)\bigr),
+X_{n+1} \triangleq H_P(X_n)=P\cup \post(c)\bigl(X_n\cap \Guard(b)\bigr),
 \qquad
 X^\ast=\bigcup_{n\ge 0}X_n,
 \]
 and therefore
 \[
-\post_{\texttt{while } b \texttt{ do } c}(P)
+\post(\texttt{while } b \texttt{ do } c)(P)
 \;=\;
 \left(\bigcup_{n\ge 0} X_n\right)\cap \bigl(\Guard(\neg b)\bigr).
 \]
@@ -405,6 +405,117 @@ and therefore
 TODO: Integrate references to standard domain theory to justify the fixed-point
  construction of the while-loop.
 \end{mynote}
+
+
+\subsubsection*{Example: Kleene iteration for a countdown loop}
+
+Consider the loop
+\[
+L \;\triangleq\; \texttt{while } b \texttt{ do } c,
+\qquad
+b \;\triangleq\; \neg(x \le 0),
+\qquad
+c \;\triangleq\; (x := x-1;\; y := y+1).
+\]
+Thus $\Guard(b)=\{\sigma\mid \sigma(x)>0\}$ and $\Guard(\neg b)=\{\sigma\mid \sigma(x)\le 0\}$.
+
+Let the initial predicate be the \emph{single} starting state
+\[
+P \;\triangleq\; \{\sigma \in \States \mid \sigma(x)=2 \ \wedge\ \sigma(y)=0\}.
+\]
+
+Because $c$ deterministically decrements $x$ and increments $y$, we have:
+\[
+\post(c)(P)
+=
+\{\sigma \in \States \mid \sigma(x)=1 \ \wedge\ \sigma(y)=1\},
+\]
+and applying the body once more,
+\[
+\post(c)\bigl(\post(c)(P)\bigr)
+=
+\{\sigma \in \States \mid \sigma(x)=0 \ \wedge\ \sigma(y)=2\}.
+\]
+
+Recall the functional
+\[
+H_{P}(X) \;\triangleq\; P \;\cup\; \post(c)\bigl(X \cap \Guard(b)\bigr),
+\qquad
+X_0 \triangleq \emptyset,
+\qquad
+X_{n+1}\triangleq H_P(X_n).
+\]
+
+Now iterate:
+
+\[
+X_0=\emptyset.
+\]
+
+\[
+X_1 = H_P(X_0)= P \cup \post(c)(\emptyset)=P
+= \{\sigma \mid \sigma(x)=2 \wedge \sigma(y)=0\}.
+\]
+
+Since every $\sigma\in X_1$ satisfies $\sigma(x)=2>0$, we have $X_1\cap \Guard(b)=X_1$ and hence
+\begin{align*}
+X_2 
+&= H_P(X_1) \\
+&= P \cup \post(c)(X_1\cap \Guard(b)) \\
+&= P \cup \post(c)(P) \\
+&=
+\{\sigma \mid \sigma(x)=2 \wedge \sigma(y)=0\}
+\;\cup\;
+\{\sigma \mid \sigma(x)=1 \wedge \sigma(y)=1\}.
+\end{align*}
+
+
+Again, all states in $X_2$ have $x>0$, so $X_2\cap \Guard(b)=X_2$, and
+\begin{align*}
+X_3
+&= H_P(X_2) \\
+&= P \cup \post(c)(X_2\cap \Guard(b)) \\
+&= P \cup \post(c)(X_2) \\
+&= P \cup \post(c)(P) \cup \post(c)(\post(c)(P)) \\
+&= \{\sigma \mid \sigma(x)=2 \wedge \sigma(y)=0\}
+  \;\cup\;
+  \{\sigma \mid \sigma(x)=1 \wedge \sigma(y)=1\} \\
+&\quad \cup\;
+  \{\sigma \mid \sigma(x)=0 \wedge \sigma(y)=2\}.
+\end{align*}
+
+Now note that the last component has $x=0$, so it \emph{does not} satisfy the guard:
+\[
+X_3 \cap \Guard(b)
+=
+\{\sigma \mid \sigma(x)=2 \wedge \sigma(y)=0\}
+\;\cup\;
+\{\sigma \mid \sigma(x)=1 \wedge \sigma(y)=1\}.
+\]
+Therefore $\post(c)(X_3\cap \Guard(b))$ produces only the $x=1,y=1$ and $x=0,y=2$ states again, so no new states appear:
+\[
+X_4 = H_P(X_3)=X_3.
+\]
+Hence the iteration has stabilized, and the least fixed point is
+\[
+X^\ast=\lfp(H_P)=X_3.
+\]
+
+By the post-semantics formula,
+\[
+\post(L)(P)
+=
+X^\ast \cap \Guard(\neg b)
+=
+X^\ast \cap \{\sigma \mid \sigma(x)\le 0\}.
+\]
+Since $X^\ast$ contains exactly one state with $x\le 0$, we get
+\[
+\post(\texttt{while } b \texttt{ do } c)(P)
+=
+\{\sigma \in \States \mid \sigma(x)=0 \ \wedge\ \sigma(y)=2\}.
+\]
+
 
 \begin{definition}[Weakest liberal precondition (for correctness reasoning)]
 Given a desired postcondition $Q\subseteq\States$, the \emph{weakest liberal
@@ -418,20 +529,23 @@ This characterizes partial correctness: if $c$ terminates from $\sigma$, then
 the result satisfies $Q$.
 The term ``liberal'' emphasizes that non-termination is allowed: if $c$ does not
 terminate from $\sigma$, then $\sigma \in \wlp(c,Q)$ holds vacuously.
+\[
+\langle c,\sigma\rangle \not\Downarrow \;\Longrightarrow\; \neg\exists \sigma'.\,(\sigma,\sigma')\in\den{c}\;\Longrightarrow\;\bigl(\forall \sigma'.\,(\sigma,\sigma')\in\den{c}\Rightarrow \sigma'\in Q\bigr)\ \text{(vacuously true)}.
+\]
 \end{definition}
 
 \paragraph{Adjoint-style connection between $\post$ and $\wlp$.}
 The post-image and weakest liberal precondition are linked by the following
 equivalence:
 \[
-\post_c(P) \subseteq Q
+\post(c)(P) \subseteq Q
 \quad\Longleftrightarrow\quad
 P \subseteq \wlp(c,Q).
 \]
 \emph{Proof.}
 ($\Rightarrow$) Take $\sigma\in P$. For any $\sigma'$ with $(\sigma,\sigma')\in\den{c}$,
-we have $\sigma'\in\post_c(P)\subseteq Q$, hence $\sigma\in\wlp(c,Q)$.
-($\Leftarrow$) Take $\sigma'\in\post_c(P)$, so $\exists\sigma\in P$ with $(\sigma,\sigma')\in\den{c}$.
+we have $\sigma'\in\post(c)(P)\subseteq Q$, hence $\sigma\in\wlp(c,Q)$.
+($\Leftarrow$) Take $\sigma'\in\post(c)(P)$, so $\exists\sigma\in P$ with $(\sigma,\sigma')\in\den{c}$.
 Since $\sigma\in\wlp(c,Q)$, we obtain $\sigma'\in Q$.
 
 \paragraph{Correctness versus incorrectness as opposite inclusions.}
@@ -445,7 +559,7 @@ every terminating execution from $P$ ends in $Q$:
 \[
 \models \{P\}\,c\,\{Q\}
 \quad\Longleftrightarrow\quad
-\post_c(P) \subseteq Q
+\post(c)(P) \subseteq Q
 \quad\Longleftrightarrow\quad
 P \subseteq \wlp(c,Q).
 \]
@@ -458,19 +572,19 @@ state from some initial state in $P$:
 \[
 \models [P]\,c\,[Q]
 \quad\Longleftrightarrow\quad
-Q \subseteq \post_c(P).
+Q \subseteq \post(c)(P).
 \]
-This is an \emph{under-approximation} statement: proving $Q\subseteq \post_c(P)$
+This is an \emph{under-approximation} statement: proving $Q\subseteq \post(c)(P)$
 certifies genuine reachability (hence genuine bugs) with no false positives.
 \end{itemize}
 
 It is useful to keep the contrast visible:
 \[
-\text{Correctness: }\post_c(P) \subseteq Q
+\text{Correctness: }\post(c)(P) \subseteq Q
 \qquad\text{vs.}\qquad
-\text{Incorrectness: }Q \subseteq \post_c(P).
+\text{Incorrectness: }Q \subseteq \post(c)(P).
 \]
-This single semantic object $\post_c(P)$ (reachable final states from $P$) will
+This single semantic object $\post(c)(P)$ (reachable final states from $P$) will
 therefore be the conceptual bridge between correctness reasoning and
 incorrectness reasoning, and it will later generalize to the quantum setting
 where $\post$ becomes a transformer on quantum states.
