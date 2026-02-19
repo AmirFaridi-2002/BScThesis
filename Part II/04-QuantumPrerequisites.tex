@@ -1,0 +1,830 @@
+\documentclass[11pt]{article}
+
+\usepackage[a4paper,margin=1in]{geometry}
+\usepackage{amsmath,amssymb,amsthm,mathtools,mathrsfs}
+\usepackage{braket,stmaryrd}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage{tikz-cd}
+
+\newcommand{\LL}{\mathcal{L}}
+\newcommand{\Tr}{\mathrm{tr}}
+\newcommand{\Id}{\mathbf{1}}
+\newcommand{\QO}{\mathrm{QO}}
+\newcommand{\sq}{\sqsubseteq}
+\newcommand{\den}[1]{\llbracket #1 \rrbracket}
+\newcommand{\Var}{\mathsf{Var}}
+\newcommand{\Val}{\mathsf{Val}}
+\newcommand{\AExp}{\mathsf{AExp}}
+\newcommand{\BExp}{\mathsf{BExp}}
+\newcommand{\Cmd}{\mathsf{Cmd}}
+\newcommand{\post}{\operatorname{post}}
+\newcommand{\wlp}{\operatorname{wlp}}
+\newcommand{\Guard}{\operatorname{Guard}}
+\newcommand{\lfp}{\operatorname{lfp}}
+\newcommand{\supp}{\operatorname{supp}}
+\newcommand{\ok}{\mathsf{ok}}
+\newcommand{\er}{\mathsf{er}}
+\newcommand{\true}{\mathsf{true}}
+\newcommand{\false}{\mathsf{false}}
+\newcommand{\error}{\mathsf{error}}
+\newcommand{\assume}{\mathsf{assume}}
+\newcommand{\assert}{\mathsf{assert}}
+\newcommand{\ifthenelse}[3]{\mathsf{if}\ #1\ \mathsf{then}\ #2\ \mathsf{else}\ #3}
+\newcommand{\whiledo}[2]{\mathsf{while}\ #1\ \mathsf{do}\ #2}
+\newcommand{\nat}{\mathsf{nat}}
+\newcommand{\infer}[3][]{\frac{#2}{#3}\,#1}
+\newcommand{\Skip}{\mathsf{skip}}
+
+\renewcommand{\braket}[2]{\langle #1 | #2 \rangle}
+
+\theoremstyle{plain}
+\newtheorem{theorem}{Theorem}[section]
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{claim}[theorem]{Claim}
+
+\theoremstyle{definition}
+\newtheorem{definition}[theorem]{Definition}
+
+\theoremstyle{remark}
+\newtheorem{remark}[theorem]{Remark}
+
+\begin{document}
+
+\begin{center}
+{\Large Quantum Prerequisites}\\[0.5em]
+\end{center}
+
+
+
+
+
+
+
+
+
+
+
+
+\setcounter{section}{0}
+\section{Quantum/Linear Algebra Prerequisites}
+
+Throughout this and the following chapters, all Hilbert spaces are \emph{finite-dimensional} complex Hilbert spaces.
+This has two practical consequences that we will use repeatedly:
+(i) every linear operator is bounded and everywhere-defined, and
+(ii) spectral decompositions and matrix representations in an orthonormal basis are always available.
+
+\paragraph{Notations and conventions.} 
+$\mathcal{H}$ denotes a (finite-dimensional) Hilbert space.
+$\LL(\mathcal{H})$ denotes the space of linear operators (linear maps) $\mathcal{H}\to \mathcal{H}$.
+$\Id$ denotes the identity operator; when needed we write $\Id_{\mathcal{H}}$ to indicate the underlying space.
+$\otimes$ denotes the tensor product of spaces, vectors, and operators (which we will define precisely later on).
+$\Tr$ denotes the trace of a linear operator.
+$A^\dagger$ denotes the adjoint of an operator $A$.
+
+We will freely identify operators with their matrix representations in a chosen orthonormal basis when convenient,
+but all definitions and statements are basis-independent.
+
+\paragraph{Dirac and labelled Dirac notations}
+We use Dirac notation for vectors and linear functionals.
+A \emph{ket} $\ket{\psi}\in \mathcal{H}$ denotes a vector, and its associated \emph{bra} $\bra{\psi}$ denotes the linear functional defined by $\bra{\psi}(\ket{\phi}) := \braket{\psi}{\phi}$, where $\braket{\cdot}{\cdot}$ is the inner product on $\mathcal{H}$.
+The rank-one (outer-product) operator $\ket{\psi}\bra{\phi}\in \LL(\mathcal{H})$ acts by
+\[
+(\ket{\psi}\bra{\phi})\ket{\xi} \;=\; \ket{\psi}\,\braket{\phi}{\xi}.
+\]
+When $\|\psi\|=1$, the operator $\ket{\psi}\bra{\psi}$ is the projection onto the one-dimensional subspace spanned by $\ket{\psi}$.
+
+In program-logic presentations, it is often helpful to make subsystem structure explicit
+by labelling registers (or ``locations'') and writing \emph{local} expressions that act nontrivially only on a specified subsystem.
+
+Informally, suppose a global state space factors as
+\[
+\mathcal{H}_{\mathrm{global}} \;\cong\; \bigotimes_{x\in \mathsf{Reg}} \mathcal{H}_x,
+\]
+where $\mathsf{Reg}$ is a finite set of register labels.
+A \emph{local} operator on register $x$ is an operator $A\in \LL(\mathcal{H}_x)$, lifted to the global space as
+\[
+A^{(x)} \;:=\; \Id \otimes \cdots \otimes A \otimes \cdots \otimes \Id,
+\]
+i.e.\ $A$ placed at position $x$ and identities elsewhere (with the understanding that the tensor-product bracketing/order is fixed by a chosen convention).
+Likewise, a local state on $x$ can be embedded as $\rho^{(x)} := \rho \otimes \sigma$ where $\sigma$ is some reference state on the complement system,
+or used via partial trace when only the reduced state on $x$ matters.
+The main purpose of this notation is conceptual: it lets us write ``the program updates register $x$''
+as a transformation acting on $\mathcal{H}_x$ while keeping the rest of the system implicit.
+When we later discuss program semantics as superoperators, this ``local'' viewpoint becomes central.
+
+\subsection{Hilbert spaces and tensor products}\label{sec:hilbert}
+
+A (complex) Hilbert space $\mathcal{H}$ is a complex vector space equipped with an inner product
+$\braket{\cdot}{\cdot}:\mathcal{H}\times\mathcal{H}\to \mathbb{C}$ that is linear in the second argument,
+conjugate-linear in the first, and positive definite.
+The associated norm is $\|\psi\| := \sqrt{\braket{\psi}{\psi}}$.
+
+A family $\{\ket{e_i}\}_{i=1}^d$ is an \emph{orthonormal basis} (ONB) of $\mathcal{H}$ if $\braket{e_i}{e_j}=\delta_{ij}$ and every vector
+$\ket{\psi}\in\mathcal{H}$ can be written uniquely as $\ket{\psi}=\sum_{i=1}^d \alpha_i \ket{e_i}$.
+
+Composite quantum systems are modelled by tensor products.
+Given Hilbert spaces $\mathcal{H}_A$ and $\mathcal{H}_B$, their tensor product $\mathcal{H}_A\otimes \mathcal{H}_B$ is the Hilbert space
+spanned by formal symbols $\ket{\psi}\otimes \ket{\phi}$, subject to bilinearity, and equipped with the inner product determined by
+\[
+\braket{\psi_1\otimes \phi_1}{\psi_2\otimes \phi_2}
+\;:=\;
+\braket{\psi_1}{\psi_2}\,\braket{\phi_1}{\phi_2},
+\quad\text{extended by linearity.}
+\]
+If $\{\ket{e_i}\}$ is an ONB of $\mathcal{H}_A$ and $\{\ket{f_j}\}$ is an ONB of $\mathcal{H}_B$, then
+$\{\ket{e_i}\otimes \ket{f_j}\}_{i,j}$ is an ONB of $\mathcal{H}_A\otimes \mathcal{H}_B$.
+
+The tensor product is the mathematical mechanism behind ``placing systems side-by-side''.
+It is also the source of entanglement: not every unit vector in $\mathcal{H}_A\otimes \mathcal{H}_B$ can be written as $\ket{\psi}\otimes\ket{\phi}$.
+For our purposes here, the key point is that $\otimes$ is the default connective for composing both states and operations.
+
+\begin{lemma}[]\label{lem:tensor-iso}
+Tensor products satisfy the expected algebraic laws up to canonical unitary isomorphism:
+\[
+(\mathcal{H}_A\otimes \mathcal{H}_B)\otimes \mathcal{H}_C \;\cong\; \mathcal{H}_A\otimes(\mathcal{H}_B\otimes \mathcal{H}_C),
+\qquad
+\mathbb{C}\otimes \mathcal{H} \;\cong\; \mathcal{H},
+\qquad
+\mathcal{H}_A\otimes \mathcal{H}_B \;\cong\; \mathcal{H}_B\otimes \mathcal{H}_A.
+\]
+These identifications are implemented by explicit unitary ``rebracketing'' and ``swap'' maps.
+\end{lemma}
+
+In practice we often suppress these isomorphisms and treat $\otimes$ as associative.
+When subsystem bookkeeping matters ,it is best to fix a register order and keep it consistent throughout.
+
+\subsection{Linear operators and Löwner order}\label{sec:operators}
+
+An \emph{operator} on $\mathcal{H}$ is a linear map $A:\mathcal{H}\to\mathcal{H}$.
+The \emph{adjoint} $A^\dagger$ is the unique operator satisfying
+\[
+\braket{\psi}{A\phi} \;=\; \braket{A^\dagger \psi}{\phi}
+\quad\text{for all }\ket{\psi},\ket{\phi}\in \mathcal{H}.
+\]
+In an orthonormal basis, $A^\dagger$ corresponds to the conjugate-transpose matrix of $A$.
+
+The \emph{trace} of $A\in \LL(\mathcal{H})$ is defined by
+\[
+\Tr(A) \;:=\; \sum_{i=1}^{d} \bra{e_i}A\ket{e_i},
+\]
+where $\{\ket{e_i}\}_{i=1}^d$ is any orthonormal basis of $\mathcal{H}$.
+This definition is independent of the chosen orthonormal basis.
+
+It is often convenient to equip $\LL(\mathcal{H})$ with the Hilbert--Schmidt inner product
+\[
+\langle A,B\rangle_{\mathrm{HS}} \;:=\; \Tr(A^\dagger B).
+\]
+This makes $\LL(\mathcal{H})$ itself into a finite-dimensional Hilbert space.
+
+\begin{lemma}[]\label{lem:adjoint-identities}
+For all $A,B\in\LL(\mathcal{H})$ and $\alpha\in\mathbb{C}$:
+\[
+(A^\dagger)^\dagger = A,\qquad
+(AB)^\dagger = B^\dagger A^\dagger,\qquad
+(\alpha A + B)^\dagger = \overline{\alpha}\,A^\dagger + B^\dagger.
+\]
+\end{lemma}
+
+\begin{lemma}[]\label{lem:trace-identities}
+For all $A,B\in\LL(\mathcal{H})$:
+\[
+\Tr(A^\dagger) = \overline{\Tr(A)},\qquad
+\Tr(AB)=\Tr(BA).
+\]
+More generally, for any finite product of compatible operators,
+\[
+\Tr(A_1A_2\cdots A_n) \;=\; \Tr(A_k A_{k+1}\cdots A_n A_1\cdots A_{k-1})
+\quad\text{(cyclicity).}
+\]
+\end{lemma}
+
+\begin{lemma}[]\label{lem:trace-tensor}
+Let $\mathcal{H}_A,\mathcal{H}_B$ be Hilbert spaces.
+For all $A\in\LL(\mathcal{H}_A)$ and $B\in\LL(\mathcal{H}_B)$,
+\[
+(A\otimes B)^\dagger = A^\dagger \otimes B^\dagger,
+\qquad
+\Tr(A\otimes B)=\Tr(A)\,\Tr(B).
+\]
+\end{lemma}
+
+We record the operator classes that appear constantly in quantum reasoning.
+
+\paragraph{Hermitian / self-adjoint}
+An operator $H\in\LL(\mathcal{H})$ is \emph{Hermitian} if $H^\dagger = H$.
+
+\paragraph{Positive semidefinite}\label{def:psd}
+A Hermitian operator $A\in\LL(\mathcal{H})$ is \emph{positive semidefinite} (PSD), written $A\sqsupseteq 0$,
+if $\bra{\psi}A\ket{\psi}\ge 0$ for all $\ket{\psi}\in\mathcal{H}$.
+
+\paragraph{Unitary}
+An operator $U\in\LL(\mathcal{H})$ is \emph{unitary} if $U^\dagger U = UU^\dagger = \Id$.
+
+\paragraph{Projection}\label{def:projection}
+An operator $P\in\LL(\mathcal{H})$ is a \emph{projection} if $P=P^\dagger$ and $P^2=P$.
+Equivalently, $P$ is the orthogonal projector onto its range $\mathrm{Ran}(P)$.
+
+\begin{theorem}[Spectral theorem]\label{thm:spectral}
+Every Hermitian operator $H\in\LL(\mathcal{H})$ admits an orthonormal eigenbasis and a real spectral decomposition
+\[
+H \;=\; \sum_{i=1}^{d} \lambda_i\, \ket{v_i}\bra{v_i},
+\]
+where $\{\ket{v_i}\}$ is an orthonormal basis and $\lambda_i\in\mathbb{R}$.
+Moreover, $H\sqsupseteq 0$ iff all eigenvalues $\lambda_i$ are $\ge 0$.
+\end{theorem}
+
+\begin{lemma}[]\label{lem:pos-conj}
+If $A\sqsupseteq 0$ and $X\in\LL(\mathcal{H})$, then $XAX^\dagger \sqsupseteq 0$.
+In particular, unitary conjugation preserves positivity: if $U$ is unitary and $A\sqsupseteq 0$, then $UAU^\dagger\sqsupseteq 0$.
+\end{lemma}
+
+\begin{lemma}[]\label{lem:proj-bounds}
+If $P$ is a projection, then $P\sqsupseteq 0$ and $P \sq \Id$.
+\end{lemma}
+
+
+The Löwner (semidefinite) order is the standard partial order on Hermitian operators.
+
+\begin{definition}[Löwner order]\label{def:loewner}
+For Hermitian operators $A,B\in\LL(\mathcal{H})$, define
+\[
+A \sq B
+\quad\!\!\iff\quad
+B-A \sqsupseteq 0.
+\]
+\end{definition}
+
+Intuitively, $A\sq B$ means that $B$ is ``at least as large'' as $A$ in every direction of Hilbert space:
+it is the operator analogue of pointwise order for real-valued functions.
+
+\begin{theorem}[]\label{thm:loewner-poset}
+On the real vector space of Hermitian operators $\{H\in\LL(\mathcal{H}) : H^\dagger = H\}$,
+the relation $\sq$ is reflexive, antisymmetric, and transitive.
+\end{theorem}
+
+\begin{lemma}[]\label{lem:trace-monotone}
+If $A\sq B$ and $C\sqsupseteq 0$, then
+\[
+\Tr(CA) \le \Tr(CB).
+\]
+In particular, if $\rho\sqsupseteq 0$ is any PSD operator, then $\Tr(A\rho)\le \Tr(B\rho)$ whenever $A\sq B$.
+\end{lemma}
+
+\subsection{Quantum states as operators}\label{sec:states}
+
+We represent quantum states by density operators, i.e.\ positive semidefinite operators with unit trace.
+This representation is both mathematically convenient,
+and operationally meaningful since it directly encodes probabilities of measurement outcomes.
+
+\begin{definition}[]\label{def:density}
+Let $\mathcal{H}$ be a finite-dimensional Hilbert space.
+\begin{itemize}[leftmargin=2em]
+  \item[] A \emph{(mixed) quantum state} on $\mathcal{H}$ is a \emph{density operator}
+  $\rho\in \LL(\mathcal{H})$ such that $\rho \sqsupseteq 0$ and $\Tr(\rho)=1$.
+  \item[] A \emph{partial} (or \emph{subnormalized}) \emph{state} on $\mathcal{H}$ is an operator
+  $\rho\in \LL(\mathcal{H})$ such that $\rho \sqsupseteq 0$ and $\Tr(\rho)\le 1$.
+\end{itemize}
+\end{definition}
+
+\begin{definition}[]\label{def:pure}
+A \emph{pure state} is a density operator of the form
+$ \rho \;=\; \ket{\psi}\bra{\psi}
+\quad\text{for some unit vector }\ket{\psi}\in\mathcal{H},\ \|\psi\|=1. $
+\end{definition}
+Pure states are ``maximally informative'' descriptions of a system, while mixed states represent classical uncertainty
+about which pure state is present, or arise as \emph{reduced states} of subsystems of entangled larger systems.
+Mathematically, the mixed states form a convex set; pure states are its extreme points.
+
+\begin{lemma}[]\label{lem:pure-char}
+Let $\rho$ be a density operator on $\mathcal{H}$. The following are equivalent:
+\begin{enumerate}[label=(\roman*), leftmargin=2em]
+  \item $\rho$ is pure, i.e.\ $\rho=\ket{\psi}\bra{\psi}$ for some unit $\ket{\psi}$.
+  \item $\rho$ is a rank-one projection (equivalently, $\rho^2=\rho$ and $\Tr(\rho)=1$).
+  \item $\Tr(\rho^2)=1$.
+\end{enumerate}
+\end{lemma}
+
+\begin{lemma}[]\label{lem:convex-states}
+If $\rho_1,\rho_2$ are density operators and $0\le \lambda\le 1$, then
+$\lambda\rho_1+(1-\lambda)\rho_2$ is a density operator.
+The same holds for partial density operators (with $\Tr\le 1$).
+\end{lemma}
+
+\subsection{Support and support calculus}\label{sec:support}
+Support is the key bridge between operator-based descriptions and the projection/subspace viewpoint used
+in sharp-predicate (projection) logics. It is also the main tool for under-approximation reasoning in QIL.
+
+\begin{definition}[Support]\label{def:supp}
+Let $A\sqsupseteq 0$ be positive semidefinite. Its \emph{support} is the subspace
+\[
+\supp(A) \;:=\; \mathrm{span}\{\ket{v} : A\ket{v}=\lambda\ket{v}\ \text{for some }\lambda>0\}.
+\]
+Equivalently, $\supp(A)=\mathrm{Ran}(A)$, the range (image) of $A$.
+We write $\Pi_A$ for the orthogonal projection onto $\supp(A)$ (the \emph{support projector} of $A$).
+\end{definition}
+If $A$ is a state (or partial state), then $\supp(A)$ is the subspace in which the state ``actually has weight''.
+Outside $\supp(A)$ the state has no component at all (zero probability for any outcome supported entirely there).
+This makes support a natural \emph{boolean} satisfaction notion for projection predicates:
+a projection $P$ is satisfied exactly when $\supp(\rho)$ lies inside the range of $P$.
+
+\begin{lemma}[]\label{lem:supp-kernel}
+For $A\sqsupseteq 0$,
+$
+\supp(A) \;=\; (\ker A)^\perp,
+\qquad
+\Pi_A A = A \Pi_A = A,
+\qquad
+A = \Pi_A A \Pi_A.
+$
+\end{lemma}
+
+\begin{lemma}[]\label{lem:supp-inclusion-proj}
+Let $\rho\sqsupseteq 0$ and let $P$ be a projection.
+The following are equivalent:
+\begin{enumerate}[label=(\roman*), leftmargin=2em]
+  \item $\supp(\rho)\subseteq \mathrm{Ran}(P)$.
+  \item $P\rho P = \rho$.
+  \item $P\rho = \rho$ (equivalently $\rho P = \rho$).
+\end{enumerate}
+\end{lemma}
+
+\begin{lemma}[Support under unitary conjugation]\label{lem:supp-unitary}
+If $U$ is unitary and $\rho\sqsupseteq 0$, then
+\[
+\supp(U\rho U^\dagger) \;=\; U\big(\supp(\rho)\big),
+\qquad
+\Pi_{U\rho U^\dagger} \;=\; U \Pi_\rho U^\dagger.
+\]
+\end{lemma}
+
+\begin{lemma}[Support of sums]\label{lem:supp-sum}
+If $\rho_1,\rho_2\sqsupseteq 0$, then
+\[
+\supp(\rho_1+\rho_2)
+\;=\;
+\mathrm{span}\big(\supp(\rho_1)\cup \supp(\rho_2)\big)
+\;=\;
+\supp(\rho_1)+\supp(\rho_2),
+\]
+where $+$ denotes the sum of subspaces.
+\end{lemma}
+
+\subsection{Composite systems and partial trace}\label{sec:composite}
+
+Let $\mathcal{H}_A,\mathcal{H}_B$ be Hilbert spaces. A joint system has state space $\mathcal{H}_A\otimes \mathcal{H}_B$.
+Product (uncorrelated) states are represented by tensor products $\rho_A\otimes \rho_B$.
+
+\begin{definition}[]\label{def:partial-trace}
+The \emph{partial trace over $\mathcal{H}_B$} is the unique linear map
+\[
+\Tr_B : \LL(\mathcal{H}_A\otimes \mathcal{H}_B)\to \LL(\mathcal{H}_A)
+\]
+such that for all $X\in \LL(\mathcal{H}_A)$ and $M\in \LL(\mathcal{H}_A\otimes \mathcal{H}_B)$,
+\[
+\Tr\big((X\otimes \Id_{\mathcal{H}_B})\, M\big)
+\;=\;
+\Tr\big(X\, \Tr_B(M)\big).
+\]
+Similarly, $\Tr_A$ is defined by the corresponding identity with $\Id_{\mathcal{H}_A}\otimes Y$ testers.
+\end{definition}
+Operationally, $\Tr_B$ means ``discard/ignore subsystem $B$''.
+If $\rho_{AB}$ is the joint state, then $\rho_A := \Tr_B(\rho_{AB})$ is exactly the state that reproduces
+all measurement statistics of observables acting only on $A$.
+This is the formal meaning of \emph{local} reasoning: local predictions depend only on the reduced state.
+
+\begin{lemma}[]\label{lem:ptrace-props}
+The partial trace is linear and satisfies:
+\begin{enumerate}[label=(\roman*), leftmargin=2em]
+  \item (Tensor rule) $\Tr_B(A\otimes B)=\Tr(B)\,A$ for all $A\in\LL(\mathcal{H}_A)$, $B\in\LL(\mathcal{H}_B)$.
+  \item (Trace preservation) $\Tr(\Tr_B(M))=\Tr(M)$ for all $M\in\LL(\mathcal{H}_A\otimes \mathcal{H}_B)$.
+  \item (Positivity) If $M\sqsupseteq 0$, then $\Tr_B(M)\sqsupseteq 0$.
+\end{enumerate}
+\end{lemma}
+
+\begin{lemma}[]\label{lem:reduction-states}
+If $\rho_{AB}$ is a density operator on $\mathcal{H}_A\otimes \mathcal{H}_B$, then
+$\rho_A:=\Tr_B(\rho_{AB})$ and $\rho_B:=\Tr_A(\rho_{AB})$ are density operators on $\mathcal{H}_A$ and $\mathcal{H}_B$, respectively.
+If $\rho_{AB}$ is a partial density operator, then so are $\rho_A$ and $\rho_B$.
+\end{lemma}
+
+\paragraph{Entanglement}
+A joint state $\rho_{AB}$ is a \emph{product state} if it equals $\rho_A\otimes \rho_B$.
+Many joint states are not of this form; they exhibit correlations that cannot be reduced to independent local descriptions.
+In particular, a \emph{pure} joint state can have \emph{mixed} reduced states.
+This is the basic structural reason why local program reasoning is subtle:
+even if an operation acts only on subsystem $A$, its effect on global assertions may depend on correlations with $B$,
+and conversely, local assertions about $A$ may require reasoning through $\Tr_B$. For more details on entanglement, one can refer to 
+any standard quantum computing textbook.
+
+\subsection{Quantum evolution}\label{sec:evolution}
+
+
+\begin{definition}[Unitary channel]\label{def:unitary-channel}
+Closed-system evolution is modelled by unitary conjugation.
+Let $U$ be unitary on $\mathcal{H}$. The associated state transformation is
+$ \rho \;\longmapsto\; U\rho U^\dagger. $
+\end{definition}
+
+\begin{lemma}[]\label{lem:unitary-state}
+If $\rho\sqsupseteq 0$, then $U\rho U^\dagger \sqsupseteq 0$.
+Moreover, $\Tr(U\rho U^\dagger)=\Tr(\rho)$, so unitary evolution maps density operators to density operators,
+and partial density operators to partial density operators with the same trace.
+\end{lemma}
+
+\subsection{Superoperators / quantum operations}\label{sec:superops}
+
+\begin{definition}[]\label{def:superop}
+Programs and open-system dynamics are modelled by \emph{superoperators}, i.e.\ linear maps on operators.
+A \emph{superoperator} (or \emph{quantum transformation}) on $\mathcal{H}$ is a linear map
+\[
+\mathcal{E}:\LL(\mathcal{H})\to \LL(\mathcal{H}).
+\]
+\end{definition}
+
+\begin{definition}[]\label{def:cp}
+A superoperator $\mathcal{E}$ is:
+\begin{itemize}[leftmargin=2em]
+  \item[] \emph{positive} if $\rho\sqsupseteq 0 \Rightarrow \mathcal{E}(\rho)\sqsupseteq 0$.
+  \item[] \emph{completely positive} (CP) if for every auxiliary Hilbert space $\mathcal{K}$,
+  the extension $\Id_{\LL(\mathcal{K})}\otimes \mathcal{E}$ is positive on $\LL(\mathcal{K}\otimes \mathcal{H})$.
+\end{itemize}
+\end{definition}
+
+Complete positivity is the mathematically correct notion of ``physical'' positivity:
+it guarantees that applying $\mathcal{E}$ to a subsystem of a larger (possibly entangled) system
+still yields a valid (PSD) global operator.
+
+\begin{definition}[]\label{def:tp-tni}
+A superoperator $\mathcal{E}$ is:
+\begin{itemize}[leftmargin=2em]
+  \item[] \emph{trace-preserving} (TP) if $\Tr(\mathcal{E}(\rho))=\Tr(\rho)$ for all $\rho\sqsupseteq 0$.
+  \item[] \emph{trace-nonincreasing} (TNI) if $\Tr(\mathcal{E}(\rho))\le \Tr(\rho)$ for all $\rho\sqsupseteq 0$.
+\end{itemize}
+A \emph{quantum operation} is a superoperator that is CP and TNI.
+We write $\QO(\mathcal{H})$ for the set of quantum operations on $\mathcal{H}$.
+\end{definition}
+
+\begin{lemma}[]\label{lem:qo-closure}
+Quantum operations are closed under composition and tensoring with identities:
+\begin{enumerate}[label=(\roman*), leftmargin=2em]
+  \item If $\mathcal{E},\mathcal{F}\in \QO(\mathcal{H})$, then $\mathcal{F}\circ \mathcal{E}\in \QO(\mathcal{H})$.
+  \item If $\mathcal{E}\in \QO(\mathcal{H})$ and $\mathcal{K}$ is any Hilbert space, then
+  $\Id_{\LL(\mathcal{K})}\otimes \mathcal{E}\in \QO(\mathcal{K}\otimes \mathcal{H})$.
+\end{enumerate}
+\end{lemma}
+
+\begin{theorem}[Kraus representation]\label{thm:kraus}
+A superoperator $\mathcal{E}:\LL(\mathcal{H})\to \LL(\mathcal{H})$ is completely positive
+iff there exist operators $E_1,\dots,E_m\in \LL(\mathcal{H})$ such that for all $\rho\in \LL(\mathcal{H})$,
+\[
+\mathcal{E}(\rho) \;=\; \sum_{k=1}^m E_k \rho E_k^\dagger.
+\]
+Any such family $\{E_k\}$ is called a \emph{Kraus family} for $\mathcal{E}$.
+\end{theorem}
+
+\begin{lemma}[]\label{lem:kraus-trace}
+Suppose $\mathcal{E}(\rho)=\sum_k E_k \rho E_k^\dagger$.
+Then:
+\begin{enumerate}[label=(\roman*), leftmargin=2em]
+  \item $\mathcal{E}$ is TP iff $\sum_k E_k^\dagger E_k = \Id$.
+  \item $\mathcal{E}$ is TNI iff $\sum_k E_k^\dagger E_k \sq \Id$.
+\end{enumerate}
+\end{lemma}
+
+\begin{definition}[Heisenberg dual (adjoint) superoperator]\label{def:dual-superop}
+For a superoperator $\mathcal{E}:\LL(\mathcal{H})\to\LL(\mathcal{H})$, its \emph{dual} (or \emph{adjoint})
+$\mathcal{E}^\ast:\LL(\mathcal{H})\to\LL(\mathcal{H})$ is defined by
+\[
+\Tr\!\big(A\,\mathcal{E}(\rho)\big) \;=\; \Tr\!\big(\mathcal{E}^\ast(A)\,\rho\big)
+\quad\text{for all }A,\rho\in\LL(\mathcal{H}).
+\]
+\end{definition}
+
+\begin{lemma}[]\label{lem:dual-kraus}
+If $\mathcal{E}(\rho)=\sum_k E_k \rho E_k^\dagger$, then
+\[
+\mathcal{E}^\ast(A) \;=\; \sum_k E_k^\dagger A E_k.
+\]
+Moreover, $\mathcal{E}$ is TP iff $\mathcal{E}^\ast(\Id)=\Id$, and $\mathcal{E}$ is TNI iff $\mathcal{E}^\ast(\Id)\sq \Id$.
+\end{lemma}
+
+\subsection{Measurements}\label{sec:measurements}
+
+Measurements are inherently probabilistic and, in general, disturb the state.
+In the operator formalism, the most common presentation uses a family of \emph{measurement operators}
+(Kraus operators indexed by outcomes), which simultaneously encode both outcome probabilities and post-measurement states.
+
+\begin{definition}[]\label{def:measurement-ops}
+A (finite-outcome) \emph{measurement} on $\mathcal{H}$ is given by operators $\{M_m\}_{m\in \mathcal{M}}\subseteq \LL(\mathcal{H})$
+satisfying the completeness relation
+\[
+\sum_{m\in \mathcal{M}} M_m^\dagger M_m \;=\; \Id.
+\]
+Given an input (partial) state $\rho\sqsupseteq 0$, define:
+\begin{itemize}[leftmargin=2em]
+  \item[] the (subnormalized) \emph{post-measurement state for outcome $m$} as
+  $\rho_m \;:=\; M_m \rho M_m^\dagger,$
+  \item[] the \emph{probability of outcome $m$} (if $\Tr(\rho)=1$) as
+  $ p(m) \;:=\; \Tr(\rho_m) \;=\; \Tr(M_m^\dagger M_m\,\rho),$
+  \item[] the \emph{normalized conditional state} (when $p(m)>0$) as
+  $ \rho\mid m \;:=\; \frac{\rho_m}{\Tr(\rho_m)}. $
+\end{itemize}
+The family of maps $\mathcal{I}_m(\rho):=M_m\rho M_m^\dagger$ is called a (quantum) \emph{instrument}.
+\end{definition}
+
+\begin{lemma}[]\label{lem:meas-branches-qo}
+For each outcome $m$, the map $\mathcal{I}_m(\rho)=M_m\rho M_m^\dagger$ is completely positive and trace-nonincreasing.
+Moreover, the nonselective map
+\[
+\mathcal{I}(\rho) \;:=\; \sum_{m\in\mathcal{M}} \mathcal{I}_m(\rho) \;=\; \sum_{m} M_m\rho M_m^\dagger
+\]
+is completely positive and trace-preserving. Hence, each branch of a measurement is a quantum operation, 
+and the overall measurement process is a quantum channel.
+\end{lemma}
+
+\begin{definition}[]\label{def:povm}
+Given measurement operators $\{M_m\}$, define the associated \emph{effects} (POVM elements)
+$ E_m \;:=\; M_m^\dagger M_m.$
+Then $E_m\sqsupseteq 0$ and $\sum_m E_m=\Id$.
+\end{definition}
+
+\begin{definition}[]\label{def:proj-meas}
+A \emph{projective measurement} is given by a family of projections $\{P_m\}_{m\in\mathcal{M}}$ such that
+\[
+P_mP_{m'}=\delta_{m m'}P_m,
+\qquad
+\sum_{m\in\mathcal{M}} P_m=\Id.
+\]
+\end{definition}
+\noindent 
+Projective measurements correspond to yes/no tests or sharp multi-outcome decompositions into orthogonal subspaces.
+It is the special case of Definition~\ref{def:measurement-ops} with $M_m:=P_m$. 
+
+
+\begin{lemma}[]\label{lem:proj-update}
+Let $\{P_m\}$ be a projective measurement and $\rho\sqsupseteq 0$.
+Then the branch state is $\rho_m=P_m\rho P_m$, with probability $p(m)=\Tr(P_m\rho)$,
+and the normalized conditional state is $\rho\mid m = \rho_m/\Tr(\rho_m)$ when $p(m)>0$.
+\end{lemma}
+
+
+\subsection{Quantum predicates / assertions}\label{sec:predicates-bridge}
+
+One common notion of quantum predicate is an \emph{effect}, i.e.\ a positive operator bounded by the identity.
+This is the D'Hondt--Panangaden style widely used in expectation-based quantum Hoare logic and in the CoqQ tradition.
+
+\begin{definition}[]\label{def:effect-pred}
+An \emph{effect predicate} on $\mathcal{H}$ is an operator $P\in\LL(\mathcal{H})$ such that
+$ 0 \sq P \sq \Id.$
+\end{definition}
+
+\begin{definition}[]\label{def:effect-sat}
+Given an effect predicate $P$ and a (partial) state $\rho\sqsupseteq 0$, define its \emph{degree of satisfaction} as
+\[
+\llbracket P \rrbracket(\rho) \;:=\; \Tr(P\rho).
+\]
+When $\rho$ is normalized, $\Tr(P\rho)\in[0,1]$.
+\end{definition}
+
+\noindent The quantity $\Tr(P\rho)$ is the probability of obtaining the ``yes'' outcome when performing the two-outcome POVM
+$\{P,\Id-P\}$ on $\rho$ (or equivalently, the expected value of the observable $P$ when $0\sq P\sq \Id$).
+Thus effects provide a \emph{graded} notion of truth: predicates hold to a certain extent rather than as a strict yes/no.
+
+\begin{definition}[]\label{def:effect-entail}
+For effects $P,Q$, define \emph{entailment} by Löwner order:
+\[
+P \;\models\; Q
+\quad\!\!\iff\quad
+P \sq Q.
+\]
+\end{definition}
+
+\begin{lemma}[]\label{lem:effect-entail-char}
+For Hermitian $P,Q$, the following are equivalent:
+\begin{enumerate}[label=(\roman*), leftmargin=2em]
+  \item $P\sq Q$.
+  \item $\Tr(P\rho)\le \Tr(Q\rho)$ for all density operators $\rho$.
+\end{enumerate}
+In particular, if $P,Q$ are effects, then $P\sq Q$ means $Q$ is at least as satisfied as $P$ in every state.
+\end{lemma}
+
+\noindent Some presentations (including CoqQ-style developments) allow \emph{general} linear operators as assertions for algebraic convenience,
+and then interpret the physically meaningful cases by restricting to Hermitian operators or effects.
+The expectation-based satisfaction $\Tr(P\rho)$ is physically interpretable exactly when $P$ is Hermitian,
+and bounded in $[0,1]$ exactly when $P$ is an effect. \\
+
+A second notion of predicate is a \emph{projection}, equivalently a subspace.
+This yields a \emph{boolean} satisfaction relation based on support inclusion.
+
+\begin{definition}[]\label{def:proj-pred}
+A \emph{sharp predicate} on $\mathcal{H}$ is a projection $P\in\LL(\mathcal{H})$ (i.e.\ $P=P^\dagger=P^2$).
+We identify such a predicate with its range subspace $\mathrm{Ran}(P)\subseteq\mathcal{H}$.
+\end{definition}
+
+\begin{definition}[]\label{def:proj-sat}
+Let $\rho\sqsupseteq 0$ and let $P$ be a projection.
+Define
+\[
+\rho \models P
+\quad\!\!\iff\quad
+\supp(\rho)\subseteq \mathrm{Ran}(P).
+\]
+\end{definition}
+
+\noindent This satisfaction relation is \emph{qualitative}: either the state is entirely supported inside the predicate subspace, or not.
+Operationally, $\rho\models P$ means that a projective test of $P$ succeeds with certainty:
+indeed $\rho\models P$ iff $P\rho P=\rho$ (Lemma~\ref{lem:supp-inclusion-proj}).
+Thus projection predicates capture ``hard'' guarantees and are well suited for reasoning about assertions that should never fail.
+
+\begin{definition}[Logical operations in the projection lattice]\label{def:proj-logic-ops}
+Let $P,Q$ be projections (identified with their range subspaces).
+Define:
+\begin{itemize}[leftmargin=2em]
+  \item[] Negation: $\neg P := P^\perp := \Id - P$ (projection onto the orthogonal complement).
+  \item[] Conjunction: $P\wedge Q$ is the projection onto $\mathrm{Ran}(P)\cap \mathrm{Ran}(Q)$.
+  \item[] Disjunction: $P\vee Q$ is the projection onto $\mathrm{span}\big(\mathrm{Ran}(P)\cup \mathrm{Ran}(Q)\big)$.
+\end{itemize}
+\end{definition}
+
+\begin{theorem}[Projection predicates form an orthomodular lattice]\label{thm:proj-lattice}
+The set of projections on $\mathcal{H}$, ordered by range inclusion (equivalently $P\le Q$ iff $PQ=P$),
+forms an orthomodular lattice with operations $\neg,\wedge,\vee$ as in Definition~\ref{def:proj-logic-ops}.
+\end{theorem}
+
+\noindent The benefit of projection predicates is their close alignment with implementable yes/no tests and with support calculus.
+In particular, projection connectives mirror the support identities from Section~\ref{sec:support}:
+support of a sum corresponds to ``or'' (span), and support inclusion corresponds to certainty of a projective test.
+
+
+\begin{lemma}[]\label{lem:proj-are-effects}
+If $P$ is a projection, then $P$ is an effect: $0\sq P\sq \Id$.
+Moreover, projections are exactly the \emph{idempotent} effects:
+if $0\sq E\sq \Id$ and $E^2=E$, then $E$ is a projection.
+\end{lemma}
+
+
+\begin{lemma}[Certainty equivalences for projections]\label{lem:proj-certainty}
+Let $P$ be a projection and $\rho$ a density operator. Then the following are equivalent:
+\[
+\rho\models P
+\quad\Longleftrightarrow\quad
+P\rho P=\rho
+\quad\Longleftrightarrow\quad
+\Tr(P\rho)=1.
+\]
+\end{lemma}
+\noindent This gives a clean translation rule:
+projection-based satisfaction can be phrased in expectation language as ``satisfied with probability one'',
+but it is often algebraically easier to reason via support, especially for under-approximation and disjunction reasoning.
+
+
+\subsection{Under-approximation and reachability}\label{sec:underapprox}
+
+Classical Incorrectness Logic (IL) is designed to reason about \emph{reachability} of bad outcomes:
+an incorrectness triple under-approximates what the program \emph{can} do.
+In the quantum setting, one might try to mimic this by describing ``bad states'' using predicates
+and requiring that some reachable state \emph{satisfies} the bad predicate.
+
+A key obstacle emphasized in QIL-style reasoning is that quantum program execution naturally produces
+\emph{mixtures} (convex combinations) of states: branching, measurement, and nondeterministic choice
+lead to density operators that aggregate multiple behaviors into one operator.
+For projection-based (boolean) satisfaction $\rho\models P$,
+this aggregation can be too coarse for bug-catching:
+even if some bad branch exists, the overall mixture may fail to satisfy a predicate that was intended
+to describe that bad branch, simply because satisfaction requires \emph{support inclusion} and therefore behaves like a
+``for all components'' condition.
+
+Intuitively: boolean satisfaction $\rho\models P$ expresses a \emph{universal} guarantee
+(``the state is entirely inside $P$'').
+But bug-catching is existential:
+we want to certify that \emph{some} bad behavior is possible.
+This explains the need for \emph{under-approximation}; 
+we want to express that the state has at least some component in $P$, rather than being entirely contained in $P$.
+
+
+\begin{definition}[]\label{def:underapprox}
+Let $\rho\sqsupseteq 0$ be a (partial) density operator on $\mathcal{H}$, and let $P$ be a projection on $\mathcal{H}$.
+We say that \emph{$P$ under-approximates $\rho$}, written
+\[
+P \;\preceq\; \rho,
+\]
+if
+\[
+\mathrm{Ran}(P)\subseteq \supp(\rho).
+\]
+Equivalently, $P\preceq \rho$ iff $\Pi_\rho P = P$ (i.e.\ the support projector of $\rho$ contains $P$).
+\end{definition}
+
+\noindent The relation $P\preceq \rho$ should be read as:
+\emph{the state $\rho$ has at least the behaviors contained in subspace $P$}.
+This is an existential-style statement: $\rho$ carries nonzero weight on every direction in $\mathrm{Ran}(P)$.
+In contrast, boolean satisfaction $\rho\models P$ means $\supp(\rho)$ is contained in $P$ (a universal-style statement).
+
+\begin{lemma}[]\label{lem:underapprox-equiv}
+For $\rho\sqsupseteq 0$ and projection $P$, the following are equivalent:
+\begin{enumerate}[label=(\roman*), leftmargin=2em]
+  \item $P\preceq \rho$.
+  \item $\mathrm{Ran}(P)\subseteq \mathrm{Ran}(\rho)$.
+  \item $P = \Pi_\rho P = P\Pi_\rho$.
+  \item $\supp(P)\subseteq \supp(\rho)$ (viewing $P$ itself as PSD).
+\end{enumerate}
+\end{lemma}
+
+\begin{lemma}[Monotonicity]\label{lem:underapprox-mono}
+Let $\rho,\sigma\sqsupseteq 0$ and let $P,Q$ be projections.
+\begin{enumerate}[label=(\roman*), leftmargin=2em]
+  \item If $P\le Q$ (i.e.\ $\mathrm{Ran}(P)\subseteq \mathrm{Ran}(Q)$) and $Q\preceq \rho$, then $P\preceq \rho$.
+  \item If $\supp(\rho)\subseteq \supp(\sigma)$ and $P\preceq \rho$, then $P\preceq \sigma$.
+\end{enumerate}
+\end{lemma}
+
+\subsection{Connectives under under-approximation}\label{sec:underapprox-connectives}
+Projection connectives behave differently under under-approximation than under boolean satisfaction.
+
+\begin{lemma}[]\label{lem:underapprox-join-sum}
+Let $\rho_1,\rho_2\sqsupseteq 0$ and let $\rho := \rho_1+\rho_2$ (in particular, this covers convex mixtures up to scaling).
+Then for any projection $P$,
+\[
+P\preceq \rho
+\quad\Longleftrightarrow\quad
+\mathrm{Ran}(P)\subseteq \supp(\rho_1)+\supp(\rho_2)
+\quad\Longleftrightarrow\quad
+P \le (\Pi_{\rho_1}\vee \Pi_{\rho_2}).
+\]
+Equivalently, $P\preceq \rho$ means that every direction in $P$ is reachable from \emph{some} component of the mixture,
+in the precise sense that $P$ lies under the join of the component support projections.
+\end{lemma}
+
+\noindent This lemma formalizes the intuition that mixtures represent ``either branch may happen'',
+so the \emph{support} of a mixture is the span (join) of the branch supports (Lemma~\ref{lem:supp-sum}).
+Under-approximation turns this into a compositional rule: to show $P$ is achievable from a mixture,
+it suffices to show $P$ lies inside the span of supports of reachable components.
+
+\begin{lemma}[Conjunction/disjunction under under-approximation]
+Let $\rho \succeq 0$ and let $P,Q$ be projections.
+\begin{enumerate}[label=(\roman*)]
+\item If $P \preceq \rho$ (or $Q \preceq \rho$), then $(P\wedge Q)\preceq \rho$.
+In particular, $P \preceq \rho$ and $Q \preceq \rho$ imply $(P\wedge Q)\preceq \rho$.
+\item $(P\vee Q)\preceq \rho \iff \big(P \preceq \rho \ \wedge\ Q \preceq \rho\big)$.
+\end{enumerate}
+Moreover, $(P\wedge Q)\preceq \rho$ does not imply $P\preceq \rho$ or $Q\preceq \rho$ in general.
+\end{lemma}
+
+\begin{lemma}[]\label{lem:underapprox-neg}
+Let $\rho\sqsupseteq 0$ and $P$ a projection.
+In general, $P\preceq \rho$ does \emph{not} imply $(\Id-P)\not\preceq \rho$, and vice versa.
+\end{lemma}
+
+
+\subsection{Achieving}\label{sec:achieving}
+QIL-style reasoning treats program outcomes as sets (or distributions) of reachable partial states,
+often aggregated into a single (subnormalized) density operator representing the ``accumulated'' reachable mass.
+
+At the prerequisites level (before full operational semantics), the key conceptual move is:
+a predicate is \emph{achievable} if it under-approximates some mixture of reachable states.
+
+\begin{definition}[]\label{def:achieve}
+Fix a program $c$ and an initial state $\rho$.
+Let $\mathsf{Reach}(c,\rho)$ denote a collection of (partial) density operators representing states reachable along terminating exits
+(or along designated observation points), and let $\rho_{\mathrm{mix}}$ be any (subnormalized) mixture of these reachable operators,
+for instance a finite sum of the form $\rho_{\mathrm{mix}}=\sum_i \rho_i$ with $\rho_i\in \mathsf{Reach}(c,\rho)$.
+A projection predicate $Q$ is \emph{achievable} from $(c,\rho)$ if
+\[
+Q \preceq \rho_{\mathrm{mix}}
+\quad\text{for some such mixture }\rho_{\mathrm{mix}}.
+\]
+\end{definition}
+
+\noindent This definition isolates the idea that incorrectness logic is about \emph{under-approximating} the set of behaviors a program can exhibit.
+The details of $\mathsf{Reach}(c,\rho)$ and what counts as an ``exit'' depend on the program semantics to be introduced later,
+but the algebraic shape is stable:
+reachability information composes by (subnormalized) summation/mixture, and claims about achievable predicates are expressed via
+support inclusion in the \emph{reverse} direction.
+
+\begin{lemma}[]\label{lem:achieve-stable}
+If $Q\preceq \rho_{\mathrm{mix}}$ and $\supp(\rho_{\mathrm{mix}})\subseteq \supp(\rho'_{\mathrm{mix}})$, then $Q\preceq \rho'_{\mathrm{mix}}$.
+In particular, adding additional reachable components to a mixture cannot invalidate an achievability claim.
+\end{lemma}
+
+\subsection{Wrap-up}\label{sec:wrapup-map}
+The prerequisites above support two complementary tracks that we will develop in subsequent sections/papers.
+
+\paragraph{Quantum Hoare Logic / CoqQ track.}
+We will treat (partial) density operators as program states (Definition~\ref{def:density}),
+and program commands as quantum operations, i.e.\ CP/TNI superoperators (Definition~\ref{def:tp-tni})
+with Kraus representations (Theorem~\ref{thm:kraus}).
+Assertions will primarily be effects $0\sq P\sq \Id$ (Definition~\ref{def:effect-pred}),
+interpreted quantitatively via expectation $\Tr(P\rho)$ (Definition~\ref{def:effect-sat}),
+and ordered by Löwner entailment $P\sq Q$ (Definition~\ref{def:effect-entail}).
+This setup naturally supports weakest-precondition reasoning via the dual superoperator $\mathcal{E}^\ast$.
+
+\paragraph{Quantum Incorrectness Logic track.}
+We will treat sharp predicates as projections/subspaces (Definition~\ref{def:proj-pred})
+and reason using support $\supp(\rho)$ (Definition~\ref{def:supp}) and its calculus (Lemmas~\ref{lem:supp-unitary}--\ref{lem:supp-sum}).
+Boolean satisfaction $\rho\models P$ (Definition~\ref{def:proj-sat}) captures certainty,
+while incorrectness/reachability reasoning uses the under-approximation relation $P\preceq \rho$
+(Definition~\ref{def:underapprox}) and its connective behavior under mixtures (Lemma~\ref{lem:underapprox-join-sum}).
+This separates ``can happen'' statements from ``must hold'' statements in a way that is robust under quantum mixing.
+
+\end{document}
