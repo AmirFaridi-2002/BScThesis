@@ -1,0 +1,348 @@
+\documentclass[11pt]{article}
+
+\usepackage[a4paper,margin=1in]{geometry}
+\usepackage{amsmath,amssymb,amsthm,mathtools,mathrsfs}
+\usepackage{braket,stmaryrd}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage{tikz-cd}
+
+\newcommand{\LL}{\mathcal{L}}
+\newcommand{\Tr}{\mathrm{tr}}
+\newcommand{\Id}{\mathbf{1}}
+\newcommand{\QO}{\mathrm{QO}}
+\newcommand{\sq}{\sqsubseteq}
+\newcommand{\den}[1]{\llbracket #1 \rrbracket}
+\newcommand{\Var}{\mathsf{Var}}
+\newcommand{\Val}{\mathsf{Val}}
+\newcommand{\AExp}{\mathsf{AExp}}
+\newcommand{\BExp}{\mathsf{BExp}}
+\newcommand{\Cmd}{\mathsf{Cmd}}
+\newcommand{\post}{\operatorname{post}}
+\newcommand{\wlp}{\operatorname{wlp}}
+\newcommand{\Guard}{\operatorname{Guard}}
+\newcommand{\lfp}{\operatorname{lfp}}
+\newcommand{\supp}{\operatorname{supp}}
+\newcommand{\ok}{\mathsf{ok}}
+\newcommand{\er}{\mathsf{er}}
+\newcommand{\true}{\mathsf{true}}
+\newcommand{\false}{\mathsf{false}}
+\newcommand{\error}{\mathsf{error}}
+\newcommand{\assume}{\mathsf{assume}}
+\newcommand{\assert}{\mathsf{assert}}
+\newcommand{\ifthenelse}[3]{\mathsf{if}\ #1\ \mathsf{then}\ #2\ \mathsf{else}\ #3}
+\newcommand{\whiledo}[2]{\mathsf{while}\ #1\ \mathsf{do}\ #2}
+\newcommand{\nat}{\mathsf{nat}}
+\newcommand{\infer}[3][]{\frac{#2}{#3}\,#1}
+\newcommand{\Skip}{\mathsf{skip}}
+\newcommand{\States}{\Sigma}
+\newcommand{\Pow}{\mathscr{P}}
+
+\renewcommand{\braket}[2]{\langle #1 | #2 \rangle}
+
+\newcommand{\Reg}{\mathsf{Reg}}
+\newcommand{\Done}{\downarrow}
+\newcommand{\Conf}[2]{\langle #1,\, #2\rangle}
+\newcommand{\step}[1]{\xrightarrow{#1}}
+\newcommand{\ptr}{\operatorname{tr}}
+\newcommand{\cyl}{\operatorname{cyl}}
+\newcommand{\Dens}{\mathcal{D}}
+\newcommand{\Dsub}[1]{\Dens^{-}(#1)}
+\newcommand{\comp}[1]{\overline{#1}}
+
+\theoremstyle{plain}
+\newtheorem{theorem}{Theorem}[section]
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{claim}[theorem]{Claim}
+
+\theoremstyle{definition}
+\newtheorem{definition}[theorem]{Definition}
+
+\theoremstyle{remark}
+\newtheorem{remark}[theorem]{Remark}
+
+\begin{document}
+
+\begin{center}
+{\Large Quantum Programming Languages and Semantics}\\[0.5em]
+\end{center}
+\setcounter{section}{4}
+
+
+
+\section{QWhile Language}\label{sec:qwhile}
+
+This section introduces the core programming language we will use for quantum program logics.
+The language follows the \emph{classical control + quantum data} paradigm: the program’s control
+flow (sequencing, branching, looping, and the program counter itself) is entirely classical, while the
+data manipulated by commands are quantum states (density operators) on a fixed composite Hilbert
+space. Concretely:
+\begin{itemize}[leftmargin=*]
+  \item[] \emph{Control is classical.} The program counter is never put into superposition. The only
+  source of probabilistic branching is \emph{measurement}: a measurement produces a classical outcome,
+  and the next command is chosen based on that outcome.
+  \item[] \emph{Data is quantum.} At every point, the program carries a (possibly subnormalized) density
+  operator $\rho$ on a fixed global Hilbert space $H$. Primitive commands act \emph{locally} on specified
+  subsystems, leaving the rest untouched (up to the standard identity extension).
+\end{itemize}
+\paragraph{Registers and subsystem structure.}
+Fix a finite set of register labels $\Reg$ and a family of finite-dimensional Hilbert spaces
+$\{H_x\}_{x\in\Reg}$. The \emph{global} state space is the tensor product
+\[
+  H \;\cong\; \bigotimes_{x\in\Reg} H_x.
+\]
+A \emph{subsystem} is a subset of labels $s \subseteq \Reg$. We write
+\[
+  H_s \;\cong\; \bigotimes_{x\in s} H_x,
+  \qquad
+  \comp{s} := \Reg\setminus s,
+  \qquad
+  H \cong H_s \otimes H_{\comp{s}}.
+\]
+
+\smallskip
+\noindent The purpose is to make precise the standard programming intuition that a program acts on
+\emph{named registers} and typically touches only \emph{finitely many} of them.
+A concrete quantum program is written in terms of a finite collection of variables/registers/qubits,
+such as $q_1,q_2,\dots,q_n$, and every primitive
+command (unitary gates, measurements, initialization) targets a specified subset of these registers.
+Thus it is natural to model the program’s data state as a single density operator on a tensor product
+space that factors according to these register boundaries. Moreover, working with explicit subsystems is essential for two semantic reasons:
+\begin{itemize}[leftmargin=*]
+  \item[] \emph{Locality of commands.} A command that is declared to act on subsystem $s$ should leave the
+  rest of the machine state unchanged; this is expressed later by cylindrical extension
+  ($A^{(s)} = A\otimes \Id_{H_{\comp{s}}}$).
+  \item[] \emph{Discarding and re-initialization.} Initialization/reset operations need to ``forget'' whatever
+  was previously stored in a register (including any entanglement with other registers). This is naturally
+  described using the decomposition $H\cong H_s\otimes H_{\comp{s}}$ together with partial trace.
+\end{itemize}
+
+\smallskip
+\noindent
+We tacitly fix a tensor-factor ordering/parenthesization convention so that expressions such as
+$H \cong H_s\otimes H_{\comp{s}}$ are well-defined (up to canonical unitary isomorphism). This lets us
+speak cleanly about commands that act only on $s$ while leaving $\comp{s}$ unchanged.
+
+\paragraph{Program states (subnormalized density operators).}
+To represent probabilistic branching without constantly renormalizing, we use \emph{subnormalized}
+(partial) density operators:
+\[
+  \Dsub{H}
+  \;:=\;
+  \{\rho \in L(H)\;:\; \rho \succeq 0 \ \wedge\ \Tr(\rho)\le 1\}.
+\]
+Intuitively, $\Tr(\rho)$ is the \emph{probability mass} of reaching $\rho$ along a particular execution path.
+Thus the same symbolic $\rho$ can simultaneously encode the post-state \emph{and} the probability of
+being in that post-state. The zero operator $0$ is allowed and represents an impossible (unreachable)
+state.
+
+\paragraph{Local operators and cylindrical extension.}
+A key design principle is \emph{locality}: commands target a subsystem $s\subseteq \Reg$ and act as the
+identity on the complement $\comp{s}$. If $A \in L(H_s)$ is a linear operator acting on subsystem $s$,
+its \emph{cylindrical extension} (identity extension) to the global space is
+\[
+  A^{(s)}
+  \;:=\;
+  A \otimes \Id_{H_{\comp{s}}}
+  \quad
+  \text{(under the fixed identification $H \cong H_s\otimes H_{\comp{s}}$)}.
+\]
+Likewise, if $U_s$ is unitary on $H_s$, then $U_s^{(s)}$ is unitary on $H$ and represents “apply $U_s$
+on subsystem $s$ and do nothing elsewhere.”
+
+We also need a primitive way to \emph{discard} part of a composite system. For $\rho \in L(H)$ and
+$s\subseteq\Reg$, write $\Tr_s(\rho)$ for the partial trace over $H_s$. Then
+$\Tr_s(\rho)\in L(H_{\comp{s}})$ and preserves subnormalization:
+\[
+\Tr(\Tr_s(\rho))=\Tr(\rho).
+\]
+Operationally, $\Tr_s$ means “throw away subsystem $s$ and keep only the reduced state of the rest.”
+A key operation in qwhile is to \emph{discard} the old content of subsystem $s$ and replace it by a
+fresh local state $\rho_s$ on $H_s$.
+Intuitively, we first ``throw away'' subsystem $s$ by taking the partial trace $\Tr_s(\rho)$, and then
+prepare a new state $\rho_s$ on $s$. As a result, the register $s$ is set to $\rho_s$ regardless of its
+previous contents, and any entanglement between $s$ and $\comp{s}$ is removed.
+This is the subsystem-level generalization of the familiar qubit reset command $q := \ket{0}$.
+
+\subsection{QWhile Language}\label{sec:qwhile-lang}
+
+We now define a core language, \emph{qwhile}, that is expressive enough to support quantum
+Hoare-style correctness reasoning and under-approximate incorrectness reasoning.
+The distinctive features are:
+(i) commands act on designated subsystems;
+(ii) branching/looping is controlled by measurement outcomes;
+(iii) the statement $\error$ models an explicit abnormal termination.
+
+
+\begin{definition}[]\label{def:qwhile-syntax}
+Fix a global register set $\Reg$ and global space $H\cong\bigotimes_{x\in\Reg}H_x$.
+qwhile commands are generated by the following grammar:
+\[
+\begin{array}{rcl}
+C \in \Cmd &::=&
+\error
+\ \mid\ 
+\Skip
+\ \mid\ 
+C_1;C_2
+\ \mid\ 
+\mathsf{init}\ \rho_s
+\ \mid\ 
+\mathsf{apply}\ U_s
+\\
+&&\mid\
+\mathsf{if}\ (\square m.\ M_s = m \rightarrow C_m)\ \mathsf{fi}
+\ \mid\
+\mathsf{while}\ M'_s = 1\ \mathsf{do}\ C\ \mathsf{od}.
+\end{array}
+\]
+Here:
+$s \subseteq \Reg$ ranges over subsystems.
+$\rho_s$ ranges over density operators on $H_s$ (i.e.\ $\rho_s\succeq 0$, $\Tr(\rho_s)=1$).
+$U_s$ ranges over unitary operators on $H_s$.
+$M_s=\{(m,M_{m})\}_{m\in \mathsf{Out}(M_s)}$ is a measurement on $H_s$ in Kraus form,
+  i.e.\ $\sum_{m} M_m^\dagger M_m = \Id_{H_s}$.
+$M'_s=\{M_0,M_1\}$ is a two-outcome measurement on $H_s$ (a special case of the above).
+\end{definition}
+
+\begin{itemize}[leftmargin=*, itemsep=0.05cm]
+  \item[] $\Skip$ terminates normally and leaves the state unchanged.
+  \item[] $\error$ terminates \emph{abnormally}. It is intended to model bug signals such as failed
+  runtime checks. Crucially, once $\error$ occurs, the program stops immediately: any remaining code
+  is discarded rather than executed.
+  \item[] $C_1;C_2$ is sequential composition: execute $C_1$ first; if $C_1$ terminates normally then
+  continue with $C_2$; if $C_1$ terminates abnormally then the whole composition terminates abnormally.
+  \item[] $\mathsf{init}\ \rho_s$ \emph{resets} subsystem $s$ to $\rho_s$, discarding any prior content of $s$
+  (including entanglement with $\comp{s}$). Operationally, it applies
+  $\rho \mapsto \rho_s \otimes \Tr_s(\rho)$.
+  \item[] $\mathsf{apply}\ U_s$ applies the unitary $U_s$ to subsystem $s$ (lifted cylindrically to $H$),
+  i.e.\ $\rho \mapsto U_s^{(s)}\,\rho\,\bigl(U_s^{(s)}\bigr)^\dagger$.
+  \item[] $\mathsf{if}(\square m.\ M_s=m\rightarrow C_m)\mathsf{fi}$ first measures subsystem $s$ using
+  the measurement $M_s$. The (classical) outcome $m$ selects the branch $C_m$, and the quantum state
+  is updated by the corresponding Kraus operator $M_m$.
+  \item[] $\mathsf{while}\ M'_s=1\ \mathsf{do}\ C\ \mathsf{od}$ repeatedly measures subsystem $s$ using
+  $M'_s=\{M_0,M_1\}$. Outcome $0$ terminates the loop; outcome $1$ executes the body $C$ and repeats.
+\end{itemize}
+
+\subsection{Operational semantics }
+
+The semantics is given as a labelled transition system on configurations. Exit conditions are
+\[
+  \epsilon ::= \ok \ \mid\ \er,
+\]
+where $\ok$ denotes normal steps/termination and $\er$ denotes abnormal termination caused by
+$\error$. We call outputs of $\ok$-terminations \emph{normal states} and outputs of $\er$-terminations
+\emph{abnormal states}.
+
+A \emph{configuration} is a pair $\Conf{C}{\rho}$ where $C$ is the remaining code to be executed
+(or $\Done$ to denote termination by convention) and $\rho\in \Dsub{H}$ is the current program state.
+The one-step transition relation is written
+\[
+  \Conf{C}{\rho}\ \step{\epsilon}\ \Conf{C'}{\rho'}.
+\]
+Because measurements branch on outcomes, a configuration may have multiple $\ok$-successors,
+each carrying a different (subnormalized) post-measurement state.
+
+\paragraph{Conventions.}
+Whenever an operator is defined only on a subsystem $s$, it is understood to act on the whole space
+via cylindrical extension (e.g.\ $U_s^{(s)}$ and $M_m^{(s)}$). All rules below are to be understood under the fixed identification $H\cong H_s\otimes H_{\comp{s}}$
+whenever subsystem $s$ is involved, and with cylindrical extensions $A^{(s)}:=A\otimes \Id_{H_{\comp{s}}}$.
+
+\[
+\infer[(\textsc{Skip})]{\Conf{\Skip}{\rho}\ \step{\ok}\ \Conf{\Done}{\rho}}{}
+\qquad
+\infer[(\textsc{Error})]{\Conf{\error}{\rho}\ \step{\er}\ \Conf{\Done}{\rho}}{}
+\]
+\noindent
+The \textsc{Error} rule is the essence of abnormal termination: it stops execution immediately,
+raises label $\er$, and returns the current quantum state unchanged.
+
+\vspace{0.6em}
+
+\[
+\infer[(\textsc{Seq-Done})]
+{\Conf{C_1;C_2}{\rho}\ \step{\ok}\ \Conf{C_2}{\rho'}}
+{\Conf{C_1}{\rho}\ \step{\ok}\ \Conf{\Done}{\rho'}}
+\qquad
+\infer[(\textsc{Seq-Step})]
+{\Conf{C_1;C_2}{\rho}\ \step{\ok}\ \Conf{C_1';C_2}{\rho'}}
+{\Conf{C_1}{\rho}\ \step{\ok}\ \Conf{C_1'}{\rho'}}
+\]
+\[
+\infer[(\textsc{Seq-Err})]
+{\Conf{C_1;C_2}{\rho}\ \step{\er}\ \Conf{\Done}{\rho'}}
+{\Conf{C_1}{\rho}\ \step{\er}\ \Conf{\Done}{\rho'}}
+\]
+\noindent
+These sequencing rules express two behaviors:
+(i) normal sequencing proceeds by stepping $C_1$ until it finishes, then continues with $C_2$;
+(ii) $\er$ \emph{short-circuits} sequencing: if $C_1$ terminates abnormally, then the whole program
+terminates abnormally and $C_2$ is discarded.
+
+\vspace{0.6em}
+
+\[
+\infer[(\textsc{Init})]
+{\Conf{\mathsf{init}\ \rho_s}{\rho}\ \step{\ok}\ \Conf{\Done}{\rho_s \otimes \Tr_s(\rho)}}
+{}
+\qquad
+\infer[(\textsc{Apply})]
+{\Conf{\mathsf{apply}\ U_s}{\rho}\ \step{\ok}\ \Conf{\Done}{U_s^{(s)}\,\rho\,\bigl(U_s^{(s)}\bigr)^\dagger}}
+{}
+\]
+\noindent
+The \textsc{Init} rule makes explicit that initialization \emph{forgets} whatever was stored in $s$ by
+taking $\Tr_s(\rho)$ and then prepares $\rho_s$ afresh. The \textsc{Apply} rule is local unitary evolution:
+it preserves trace, so $\Tr(\rho)$ (the path weight) is unchanged.
+
+\vspace{0.6em}
+
+\[
+\infer[(\textsc{If})]
+{\Conf{\mathsf{if}\ (\square m.\ M_s=m\rightarrow C_m)\ \mathsf{fi}}{\rho}\ \step{\ok}\ \Conf{C_m}{M_m^{(s)}\,\rho\,\bigl(M_m^{(s)}\bigr)^\dagger}}
+{m\in \mathsf{Out}(M_s)}
+\]
+\noindent
+This rule formalizes \emph{measurement-controlled branching}. For each possible outcome $m$,
+there is a transition to the corresponding branch $C_m$. The post-measurement state is
+subnormalized: its trace equals the probability mass of seeing outcome $m$ on input $\rho$.
+
+\vspace{0.6em}
+
+\[
+\infer[(\textsc{While-0})]
+{\Conf{\mathsf{while}\ M'_s=1\ \mathsf{do}\ C\ \mathsf{od}}{\rho}\ \step{\ok}\ \Conf{\Done}{M_0^{(s)}\,\rho\,\bigl(M_0^{(s)}\bigr)^\dagger}}
+{}
+\]
+\[
+\infer[(\textsc{While-1})]
+{\Conf{\mathsf{while}\ M'_s=1\ \mathsf{do}\ C\ \mathsf{od}}{\rho}\ \step{\ok}\ \Conf{C;\ \mathsf{while}\ M'_s=1\ \mathsf{do}\ C\ \mathsf{od}}{M_1^{(s)}\,\rho\,\bigl(M_1^{(s)}\bigr)^\dagger}}
+{}
+\]
+\noindent
+The loop is driven by a two-outcome measurement. Outcome $0$ terminates the loop immediately;
+outcome $1$ unrolls one iteration: execute $C$ and then repeat the loop.
+
+\paragraph{Comments on normalization and probability.}
+The rules intentionally avoid renormalization. For example,
+$M_m^{(s)}\rho(M_m^{(s)})^\dagger$ is not divided by its trace.
+Instead, $\Tr\!\left(M_m^{(s)}\rho(M_m^{(s)})^\dagger\right)$ \emph{is} the probability mass of taking
+outcome $m$ from state $\rho$. This is why subnormalized states are convenient: the branching
+structure is classical (one successor per outcome), while the quantitative weights are carried by the
+traces of the resulting partial states.
+
+Write $\step{\epsilon}^{\,*}$ for the reflexive-transitive closure of $\step{\epsilon}$, where the label records
+whether an abnormal termination occurred:
+\begin{itemize}[leftmargin=*]
+  \item[] $\Conf{C}{\rho}\ \step{\ok}^{\,*}\ \Conf{C'}{\rho'}$ means: execute zero or more steps, and no step is
+  labelled $\er$.
+  \item[] $\Conf{C}{\rho}\ \step{\er}^{\,*}\ \Conf{\Done}{\rho'}$ means: along the execution, an $\er$-labelled
+  termination occurs. By \textsc{Seq-Err}, once $\er$ happens, the remaining code is discarded and the
+  computation ends immediately.
+\end{itemize}
+This separation of $\ok$ vs.\ $\er$ executions is essential for later incorrectness-style specifications:
+it allows us to talk about \emph{normal outcomes} and \emph{error outcomes} of the same program,
+and to treat the existence of an $\er$-path as evidence of a bug.
+
+
+\end{document}
