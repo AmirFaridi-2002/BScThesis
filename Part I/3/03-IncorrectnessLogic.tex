@@ -1,0 +1,1430 @@
+\documentclass[11pt]{article}
+
+\usepackage[a4paper,margin=1in]{geometry}
+\usepackage{amsmath,amssymb,amsthm,mathtools,mathrsfs}
+\usepackage{braket,stmaryrd}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage{tikz-cd}
+
+\newcommand{\LL}{\mathcal{L}}
+\newcommand{\Tr}{\mathrm{tr}}
+\newcommand{\Id}{\mathbf{1}}
+\newcommand{\QO}{\mathrm{QO}}
+\newcommand{\sq}{\sqsubseteq}
+\newcommand{\den}[1]{\llbracket { #1 } \rrbracket}
+
+\newcommand{\Var}{\mathsf{Var}}
+\newcommand{\Val}{\mathsf{Val}}
+\newcommand{\AExp}{\mathsf{AExp}}
+\newcommand{\BExp}{\mathsf{BExp}}
+\newcommand{\Cmd}{\mathsf{Cmd}}
+
+\newcommand{\States}{\Sigma}
+\newcommand{\Pow}{\mathscr{P}}
+
+\newcommand{\post}{\operatorname{post}}
+\newcommand{\wlp}{\operatorname{wlp}}
+\newcommand{\Guard}{\operatorname{Guard}}
+\newcommand{\lfp}{\operatorname{lfp}}
+
+\newcommand{\IdRel}{\mathrm{Id}}
+\newcommand{\IdOn}[1]{\IdRel_{#1}}
+
+\newcommand{\spc}[2]{\operatorname{sp}_{#1}\!\left(#2\right)}
+
+\newcommand{\Mod}{\operatorname{Mod}}
+\newcommand{\Free}{\operatorname{Free}}
+
+\newcommand{\ok}{\mathsf{ok}}
+\newcommand{\er}{\mathsf{er}}
+\newcommand{\true}{\mathsf{tt}}
+\newcommand{\false}{\mathsf{ff}}
+\newcommand{\error}{\mathsf{error}}
+\newcommand{\assume}{\mathsf{assume}}
+\newcommand{\assert}{\mathsf{assert}}
+\newcommand{\ifthenelse}[3]{\mathsf{if}\ #1\ \mathsf{then}\ #2\ \mathsf{else}\ #3}
+\newcommand{\whiledo}[2]{\mathsf{while}\ #1\ \mathsf{do}\ #2}
+\newcommand{\nat}{\mathsf{nat}}
+\newcommand{\infer}[3][]{\frac{#2}{#3}\,#1}
+\newcommand{\Skip}{\mathsf{skip}}
+
+\theoremstyle{plain}
+\newtheorem{theorem}{Theorem}[section]
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{claim}[theorem]{Claim}
+
+\theoremstyle{definition}
+\newtheorem{definition}[theorem]{Definition}
+
+\newenvironment{mynote}
+    {\par\medskip\color{black!40}\footnotesize\itshape}
+    {\medskip\par}
+
+\theoremstyle{remark}
+\newtheorem{remark}[theorem]{Remark}
+
+\begin{document}
+
+\begin{center}
+{\Large Section 4: Incorrectness Logic}\\[0.5em]
+\end{center}
+\setcounter{section}{2}
+
+\section{Incorrectness Logic (IL)}\label{sec:IL}
+
+IL is a program logic tailored for \emph{bug-catching}.
+Where classical verification aims to establish that programs satisfy desired
+properties on \emph{all} executions, bug-finding and testing are inherently
+\emph{existential}: one wants evidence that there exists an execution leading to
+a problematic outcome. Traditional Hoare Logic (HL) is extremely successful for
+\emph{absence-of-bugs} reasoning, but its semantics are universal, and therefore
+it does not directly support the kind of ``reach a bad state'' claims that arise
+in debugging and test generation.
+
+The modern motivation for IL comes from the observation that many automated
+analysis tools (symbolic execution, bounded exploration, fuzzing-guided search,
+abstract interpretation tuned for bug-finding) naturally produce
+\emph{under-approximations}: they explore some executions and return concrete
+reachable states, but they do not claim completeness. IL provides a principled
+logical framework for this style of reasoning: instead of proving that
+\emph{all} reachable outcomes satisfy a specification, it proves that
+\emph{some} specified outcomes are genuinely reachable. This makes IL particularly
+well-suited for certifying discovered counterexamples and for composing
+bug-finding results across program structure.
+
+Historically, IL was introduced in the context of \emph{under-approximate}
+reasoning and compositional bug-catching. It puts reachability on an equal
+footing with correctness: both are interpreted using the same underlying program
+semantics, but they reverse the direction of inclusion. As a consequence, IL
+supports ``no false positives'' reasoning: if an IL triple is derivable, then
+there is a real terminating execution witnessing the claimed outcome set.
+
+\subsection{Extension of $\Cmd$ and its semantics}\label{sec:IL-meaning}
+
+In Hoare Logic, a triple $\{p\}\,c\,\{q\}$ is an \emph{over-approximate} claim:
+starting from any state in $p$, every terminating run ends in a state in $q$.
+IL is the dual viewpoint: IL asserts the \emph{reachability}
+of a described set of outcomes, i.e.\ an \emph{under-approximation} of what the program can do.
+
+Let $\States$ be the set of program states.
+To align with later quantum incorrectness logics (which track outcomes/exits explicitly),
+we model commands with at least two exits:
+\[
+\epsilon \in \{\ok,\er\}.
+\]
+For each command $c$, its denotation is given by two relations
+\[
+\den{c}_{\ok} \subseteq \States\times\States,
+\qquad
+\den{c}_{\er} \subseteq \States\times\States,
+\]
+or sometimes written as:
+\[
+\den{c} \subseteq \States \times (\States \times \{\ok,\er\}),
+\]
+where $(\sigma,\sigma')\in \den{c}_{\ok}$ means:
+\emph{there is a terminating execution of $c$ from $\sigma$ to $\sigma'$ that exits normally,}
+and similarly for $\er$ (abnormal/error exit).
+
+To state the proof system of Incorrectness Logic in a compositional way, we extend the
+$\Cmd$ grammar with the following primitive constructs: an explicit error command,
+a path-filtering assume, nondeterministic assignment, local scoping, nondeterministic choice,
+and Kleene iteration. These primitives are convenient because standard constructs such as
+\texttt{if}, \texttt{while}, and $\assert{}$ can be encoded using them.
+
+\begin{definition}[Extended command language for IL]
+Let $x\in\Var$, $a\in\AExp$, and $B\in\BExp$. The (extended) commands $C\in\Cmd$ are generated by:
+\[
+\begin{array}{rcl}
+C ::= & \Skip
+\mid x := a
+\mid x := \mathsf{nondet}() \\
+& \mid C_1;C_2
+\mid C_1 + C_2
+\mid C^{\star} \\
+& \mid \assume\, B
+\mid \error()
+\mid \mathsf{local}\ x.\,C .
+\end{array}
+\]
+Here $C_1 + C_2$ is nondeterministic choice, $C^{\star}$ denotes Kleene iteration (zero or more
+repetitions), $\assume\,B$ filters executions to those satisfying $B$, $\error()$ forces abnormal exit,
+and $\mathsf{local}\ x.\,C$ introduces a fresh local variable scope for $x$ within $C$.
+\end{definition}
+
+
+\begin{align*}
+  \whiledo{B}{C} &\triangleq (\assume(B);C)^{\star};\assume(\neg B), \\
+  \ifthenelse{B}{C_1}{C_2} &\triangleq (\assume(B);C_1) + (\assume(\neg B);C_2), \\
+  \assert(B) &\triangleq \assume(B) + (\assume(\neg B);\error()).
+\end{align*}
+
+\paragraph{Semantics of IL commands.}
+Fix a set of states $\States$, and let $\epsilon \in \{\ok,\er\}$ range over exits.
+Each command $C$ denotes two relations
+$ \den{C}_{\epsilon} \subseteq \States \times \States .$
+Boolean expressions are interpreted by a total function
+$ \den{B} : \States \to \{\true,\false\}.$
+
+We use relational composition: for $R,S \subseteq \States\times\States$,
+\[
+  R \mathbin{;} S \;\triangleq\; \{(\sigma,\sigma'') \mid \exists\sigma'.\,(\sigma,\sigma')\in R \wedge (\sigma',\sigma'')\in S\}.
+\]
+
+\begin{align*}
+\den{\Skip}_{\ok} &\triangleq \{(\sigma,\sigma)\mid \sigma\in\States\},
+&
+\den{\Skip}_{\er} &\triangleq \varnothing,
+\\[0.4em]
+\den{\error()}_{\ok} &\triangleq \varnothing,
+&
+\den{\error()}_{\er} &\triangleq \{(\sigma,\sigma)\mid \sigma\in\States\},
+\\[0.4em]
+\den{\assume\,B}_{\ok} &\triangleq \{(\sigma,\sigma)\mid \den{B}(\sigma)=\true\},
+&
+\den{\assume\,B}_{\er} &\triangleq \varnothing,
+\\[0.8em]
+\den{C_1 + C_2}_{\ok}
+&\triangleq \den{C_1}_{\ok} \cup \den{C_2}_{\ok},
+&
+\den{C_1 + C_2}_{\er}
+&\triangleq \den{C_1}_{\er} \cup \den{C_2}_{\er},
+\\[0.8em]
+\den{C_1;C_2}_{\ok}
+&\triangleq \den{C_1}_{\ok} \mathbin{;} \den{C_2}_{\ok},
+&
+\den{C_1;C_2}_{\er}
+&\triangleq \bigl(\den{C_1}_{\ok} \mathbin{;} \den{C_2}_{\er}\bigr)\ \cup\ \den{C_1}_{\er},
+\\[0.8em]
+\den{C^\star}_{\ok}
+&\triangleq \displaystyle\bigcup_{i\in\mathbb{N}} \den{C^{i}}_{\ok},
+&
+\den{C^\star}_{\er}
+&\triangleq \displaystyle\bigcup_{i\in\mathbb{N}} \den{C^{i}}_{\er}.
+\end{align*}
+
+where the iterates are defined by 
+$ C^{0} \triangleq \Skip,
+  \quad
+  C^{i+1} \triangleq C;C^{i}. $
+
+For $\sigma\in\States$ and $v\in\Val$, write $\sigma[x\mapsto v]$ for the store
+that agrees with $\sigma$ everywhere except at $x$.
+
+\begin{align*}
+\den{x := e}_{\ok}
+&\triangleq \{(\sigma,\ \sigma[x\mapsto \den{e}(\sigma)]) \mid \sigma\in\States\},
+\\
+\den{x := e}_{\er}
+&\triangleq \varnothing,
+\\[0.6em]
+\den{x := \mathsf{nondet}()}_{\ok}
+&\triangleq \{(\sigma,\ \sigma[x\mapsto v]) \mid \sigma\in\States,\ v\in\Val\},
+\\
+\den{x := \mathsf{nondet}()}_{\er}
+&\triangleq \varnothing,
+\\[0.8em]
+\den{\mathsf{local}\ x.\,C}_{\epsilon}
+&\triangleq \{(\sigma[x\mapsto v],\ \sigma'[x\mapsto v]) \mid (\sigma,\sigma')\in \den{C}_{\epsilon},\ v\in\Val\}.
+\end{align*}
+
+\paragraph{Post-image operator.}
+For any relation $R\subseteq \States\times\States$ and predicate (set of states) $p\subseteq\States$, 
+the post-image is:
+\[
+\post(R)(p) \;\triangleq\; \{\sigma' \in \States \mid \exists \sigma\in p.\ (\sigma,\sigma')\in R\}.
+\]
+We abbreviate $\post_{\epsilon}(c)(p)\triangleq \post(\den{c}_{\epsilon})(p)$, 
+and may use them interchangably.
+
+\paragraph{IL triples (under-approximate).}
+An IL triple has the form
+$ [p]\,c\,[\epsilon:q], $
+and is \emph{semantically valid}
+\begin{equation}\label{eq:IL-def}
+\models [p]\,c\,[\epsilon:q]
+\quad\Longleftrightarrow\quad
+q \subseteq \post_{\epsilon}(c)(p).
+\end{equation}
+Intuitively:
+\begin{quote}
+``Every state described by $q$ is actually reachable (via exit $\epsilon$) from \emph{some} initial state in $p$.'' 
+\end{quote}
+When both exits matter, we also write a \emph{quadruple}:
+\[
+[p]\,c\,[\ok:q]\,[\er:r]
+\quad\text{as shorthand for}\quad
+[p]\,c\,[\ok:q]\ \wedge\ [p]\,c\,[\er:r].
+\]
+
+\paragraph{Reachability characterization.}
+Equation~\eqref{eq:IL-def} is equivalent to an explicit reachability property:
+\begin{equation}\label{eq:IL-reachability}
+\models [p]\,c\,[\epsilon:q]
+\quad\Longleftrightarrow\quad
+\forall \sigma_q\in q.\ \exists \sigma_p\in p.\ (\sigma_p,\sigma_q)\in \den{c}_{\epsilon}.
+\end{equation}
+This makes the existential nature of IL explicit: IL is about \emph{witnessing} reachable outcomes.
+
+\paragraph{No false positivity.}
+Because IL requires $q$ to be a subset of actually reachable final states, any state included in $q$
+comes with a semantic guarantee that it can happen in a real execution (from some $p$-state).
+This is the logical core of the ``no false positives'' philosophy for bug-catching:
+IL can miss bugs (false negatives) if the reasoning is too weak, but it does not invent unreachable outcomes.
+
+\subsection{Duality}\label{sec:IL-unified-picture}
+
+Hoare Logic and Incorrectness Logic can be presented as two inequalities around the
+same semantic transformer $\post$. For a fixed command $c$ and exit $\epsilon$, the post-image $\post_{\epsilon}(c)$ is a predicate transformer:
+\[
+\post_{\epsilon}(c) : \Pow(\States)\to \Pow(\States).
+\]
+Both HL and IL speak about how a candidate postcondition compares to the exact post-image:
+\[
+\begin{array}{rcl}
+\models \{p\}\,c\,\{\epsilon:q\}
+&\Longleftrightarrow&
+\post_{\epsilon}(c)(p)\subseteq q,
+\\[2mm]
+\models [p]\,c\,[\epsilon:q]
+&\Longleftrightarrow&
+q\subseteq \post_{\epsilon}(c)(p).
+\end{array}
+\]
+Thus, HL and IL are dual directions of approximation:
+\begin{figure}[ht]
+\centering
+\begin{tikzcd}[row sep=large, column sep=huge]
+\Pow(\States)
+\arrow[r, "\post_{\epsilon}(c)"]
+\arrow[r, dashed, bend left=25, "{\{ - \}\,c\,\{\epsilon:-\}}"]
+\arrow[r, dashed, bend right=25, "{[ - ]\,c\,[\epsilon:-]}"]
+&
+\Pow(\States)
+\arrow[r, shift left=0.8ex, "\subseteq" description]
+\arrow[r, shift right=0.8ex, "\supseteq" description]
+&
+\Pow(\States)
+\end{tikzcd}
+\label{fig:IL-commuting}
+\end{figure}
+
+One immediate consequences worth recording is that the exact $\post_{\epsilon}(c)(p)$ is simultaneously:
+the \emph{strongest} over-approximate postcondition (smallest $q$ with $\post\subseteq q$),
+and the \emph{weakest} under-approximate postcondition (largest $q$ with $q\subseteq\post$).
+
+\paragraph{Symmetry principles: $(\vee/\wedge)$ and consequence}
+Because IL talks about subset \emph{into} the exact post-image, conjunction of IL triples corresponds
+to \emph{disjunction} of result predicates:
+\begin{equation}\label{eq:IL-and-or-sym}
+\models [p]\,c\,[\epsilon:q_1]\ \wedge\ \models [p]\,c\,[\epsilon:q_2]
+\quad\Longleftrightarrow\quad
+\models [p]\,c\,[\epsilon:q_1 \vee q_2].
+\end{equation}
+In contrast, HL combines postconditions by conjunction:
+\[
+\models \{p\}\,c\,\{\epsilon:q_1\}\ \wedge\ \models \{p\}\,c\,\{\epsilon:q_2\}
+\quad\Longleftrightarrow\quad
+\models \{p\}\,c\,\{\epsilon:q_1 \wedge q_2\}.
+\]
+
+For IL, enlarging the precondition and shrinking (strengthening) the result is sound:
+\begin{equation}\label{eq:IL-consequence}
+\frac{p \subseteq p' \qquad \models [p]\,c\,[\epsilon:q] \qquad q' \subseteq q}
+{\models [p']\,c\,[\epsilon:q']}.
+\end{equation}
+Read: we may \emph{weaken} the presumption (allow more starts) and \emph{strengthen} the result
+(commit to fewer, more precise reachable outcomes).
+
+For HL the directions flip:
+\[
+\frac{p' \subseteq p \qquad \models \{p\}\,c\,\{\epsilon:q\} \qquad q \subseteq q'}
+{\models \{p'\}\,c\,\{\epsilon:q'\}}.
+\]
+
+From~\eqref{eq:IL-consequence}, if $q_1 \subseteq q_1\vee q_2$ then
+\[
+\models [p]\,c\,[\epsilon:q_1\vee q_2]
+\ \Longrightarrow\
+\models [p]\,c\,[\epsilon:q_1].
+\]
+This is a hallmark of under-approximation: one may focus on fewer than all paths,
+as long as one remains truthful about reachability.
+
+\subsection{Proof system}\label{sec:IL-proof}
+
+We now give an axiomatic proof system for IL triples.
+As in the semantic presentation above, assertions $p,q,\dots$ are treated extensionally as
+subsets of $\States$; hence we freely use set-theoretic reasoning (subset inclusion)
+as an ``oracle'' side condition in rules.
+We write $\false$ for the empty predicate $\varnothing$, and use $\wedge,\vee,\neg$
+for intersection, union, and complement (relative to $\States$).
+A rule is \emph{sound} if it preserves semantic validity in
+\eqref{eq:IL-def}. Since assertions are treated extensionally as sets of states, $\exists x.\,p$ means
+\emph{forget the value of $x$} (project it away):
+\[
+\exists x.\,p \;\triangleq\; \{\sigma\in\States \mid \exists v\in\Val.\ \sigma[x\mapsto v]\in p\}.
+\]
+So $\sigma\models \exists x.\,p$ iff there exists some choice of $x$ that makes $p$ true.
+
+
+
+\[
+\infer[\textsc{Empty}]
+{ }
+{[p]\,C\,[\epsilon:\false]}
+\qquad
+\infer[\textsc{Consequence}]
+{p \subseteq p' \qquad [p]\,C\,[\epsilon:q] \qquad q' \subseteq q}
+{[p']\,C\,[\epsilon:q']}
+\]
+
+
+\[
+\infer[\textsc{Disjunction}]
+{[p_1]\,C\,[\epsilon:q_1] \qquad [p_2]\,C\,[\epsilon:q_2]}
+{[p_1\vee p_2]\,C\,[\epsilon:q_1\vee q_2]}
+\]
+
+\[
+\infer[\textsc{Skip}]
+{ }
+{[p]\,\Skip\,[\ok:p]\,[\er:\false]}
+\qquad
+\infer[\textsc{Error}]
+{ }
+{[p]\,\error() \,[\ok:\false]\,[\er:p]}
+\]
+
+\[
+\infer[\textsc{Assume}]
+{ }
+{[p]\,\assume\,B\,[\ok:p\wedge B]\,[\er:\false]}
+\qquad
+\infer[\textsc{Choice}\ (i\in\{1,2\})]
+{[p]\,C_i\,[\epsilon:q]}
+{[p]\,(C_1+C_2)\,[\epsilon:q]}
+\]
+
+\[
+\infer[\textsc{Seq-Er}]
+{[p]\,C_1\,[\er:r]}
+{[p]\,(C_1;C_2)\,[\er:r]}
+\qquad
+\infer[\textsc{Seq-Ok}]
+{[p]\,C_1\,[\ok:q] \qquad [q]\,C_2\,[\epsilon:r]}
+{[p]\,(C_1;C_2)\,[\epsilon:r]}
+\]
+
+\[
+\infer[\textsc{Iter-Zero}]
+{ }
+{[p]\,C^\star\,[\ok:p]}
+\qquad
+\infer[\textsc{Iter-NonZero}]
+{[p]\,(C^\star;C)\,[\epsilon:q]}
+{[p]\,C^\star\,[\epsilon:q]}
+\]
+
+\[
+\infer[\textsc{Back-Var}\ (\text{$n$ fresh})]
+{[\,p(n)\wedge \nat(n)\,]\,C\,[\ok:\,p(n+1)\wedge \nat(n)\,]}
+{[\,p(0)\,]\,C^\star\,[\ok:\exists n.\,p(n)\wedge \nat(n)]}
+\]
+
+
+
+\paragraph{Iteration.}
+Kleene iteration $C^\star$ can always do \emph{zero} iterations and exit normally, hence
+\textsf{Iterate zero} says every predicate $p$ is an under-approximate ``invariant'':
+starting in $p$, one way to execute $C^\star$ is to do nothing and end in $p$.
+
+If you can prove a triple for $C^\star;C$, you have described executions with \emph{at least one}
+final iteration. The rule then lets you conclude the same result for $C^\star$ itself
+(because $C^\star$ includes all non-zero iteration counts as well).
+
+A typical reasoning pattern is:
+\[
+\underbrace{[p]\,C^\star\,[\ok:\textit{frontier}]}_{\text{reachable by some number of ok-iterations}}
+\qquad
+\underbrace{[\textit{frontier}]\,C\,[\er:q]}_{\text{error on the next iteration}}
+\quad\Rightarrow\quad
+[p]\,C^\star\,[\er:q],
+\]
+using \textsf{Sequencing (normal)} to get $[p]\,C^\star;C\,[\er:q]$ and then \textsf{Iterate non-zero}.
+
+\paragraph{Backwards Variant.}
+The rule \textsf{Backwards Variant} is IL's main principle for loop reasoning beyond bounded unrolling.
+It should be compared to classic termination arguments based on a \emph{variant} that decreases on each
+iteration, but here the ``decrease'' is seen when reading the reachability claim \emph{backwards}.
+
+\smallskip
+The conclusion
+$ [p(0)]\,C^\star\,[\ok:\exists n.\,p(n)\wedge\nat(n)] $
+means every final state that satisfies $p(n)$ for some natural $n$ is indeed reachable by running $C^\star$
+from \emph{some} start state in $p(0)$.
+
+\smallskip
+The premise
+$ [\,p(n)\wedge\nat(n)\,]\,C\,[\ok:\,p(n+1)\wedge\nat(n)\,] $
+says every state satisfying $p(n+1)$ has some predecessor in $p(n)$ that reaches it by one $C$-step.
+
+So, forward execution \emph{increments} the index:
+\[
+p(0)\xrightarrow{C}p(1)\xrightarrow{C}p(2)\xrightarrow{C}\cdots
+\]
+and therefore $C^\star$ can produce $p(n)$ for any finite $n$.
+
+\smallskip
+\emph{Why “backwards”.}
+The under-approximate reading of IL triples is easier to visualize by thinking in reverse:
+pick any \emph{final} state $\sigma_f$ satisfying $p(k)$.
+To witness the IL triple, we must exhibit a \emph{starting} state $\sigma_0$ in $p(0)$ such that
+$\sigma_0 \xrightarrow{C^\star} \sigma_f$.
+
+The premise allows us to go backwards one step at a time:
+since $\sigma_f\in p(k)$, the premise guarantees there exists some predecessor $\sigma_{k-1}\in p(k-1)$
+that can reach $\sigma_f$ by one $C$-step.
+Repeating this $k$ times yields a chain back to some $\sigma_0\in p(0)$.
+Thus the numeric parameter decreases when searching for predecessors:
+\[
+p(k)\leadsto p(k-1)\leadsto \cdots \leadsto p(0).
+\]
+The side condition “$n$ fresh” (not free in $C$ nor in the schema $p(\cdot)$)
+ensures this index is a logical counter, not something the program can modify or depend on.
+
+\smallskip
+\emph{Why this matches IL (and why it does not force total termination).}
+The conclusion does \emph{not} say that all runs terminate.
+It only says that enough terminating runs exist to cover every state in the claimed result set.
+Other runs may diverge; IL remains sound because it never claims reachability of states
+that cannot be reached by a terminating run.
+
+\smallskip
+\emph{Example.}
+Let $C$ be $x := x+1$, and let $p(n)$ be the predicate $x=n$.
+Then the premise states:
+\[
+[x=n\wedge\nat(n)]\ x:=x+1\ [\ok:\ x=n+1\wedge\nat(n)],
+\]
+so Backwards Variant yields:
+\[
+[x=0]\ (x:=x+1)^\star\ [\ok:\exists n.\ x=n\wedge\nat(n)],
+\]
+i.e.\ from $x=0$ we can reach any natural value of $x$ by iterating the increment some number of times.
+
+We write $p[e/x]$ for substitution of expression $e$ for $x$ in an assertion, and
+$\Free(r)$ for the (semantic) set of free variables of an assertion $r$ (those it depends on).
+We write $\Mod(C)$ for the set of program variables that $C$ may assign.
+
+\[
+\infer[\textsc{Assignment}]
+{ }
+{[p]\ x:=e\ [\ok:\ \exists x'.\ p[x'/x]\ \wedge\ x = e[x'/x]]\ [\er:\false]}
+\]
+
+\[
+\infer[\textsc{Nondet Assignment}]
+{ }
+{[p]\ x:=\mathsf{nondet}()\ [\ok:\ \exists x'.\ p\ ]\ [\er:\false]}
+\]
+
+\[
+\infer[\textsc{Constancy}]
+{[p]\,C\,[\epsilon:q] \qquad \Mod(C)\cap \Free(f)=\varnothing}
+{[p\wedge f]\,C\,[\epsilon:q\wedge f]}
+\]
+
+\[
+\infer[\textsc{Local Variable}\ (\text{$y$ fresh})]
+{[p]\ C(y/x)\ [\epsilon:q]}
+{[p]\ \mathsf{local}\ x.\,C\ [\epsilon:\exists y.\ q]}
+\]
+
+\[
+\infer[\textsc{Substitution I}]
+{[p]\,C\,[\epsilon:q] \qquad (\Free(e)\cup\{x\})\cap \Free(C)=\varnothing}
+{([p]\,C\,[\epsilon:q])(e/x)}
+\]
+
+\[
+\infer[\textsc{Substitution II}\ (\text{$y$ fresh})]
+{[p]\,C\,[\epsilon:q] \qquad y\notin \Free(p,C,q)}
+{([p]\,C\,[\epsilon:q])(y/x)}
+\]
+
+
+In Hoare Logic, the assignment axiom is typically backward:
+\[
+\{\,q[e/x]\,\}\ x:=e\ \{\,q\,\}.
+\]
+In IL this form is unsound, because it can introduce unreachable states into the \emph{result}
+(assertion on the right of an IL triple must be a subset of \emph{actually reachable} states).
+The IL assignment axiom therefore uses Floyd’s forward style: it
+\emph{remembers the old value} of $x$ using an existentially quantified logical variable $x'$.
+
+Concretely, in
+\[
+[p]\ x:=e\ [\ok:\ \exists x'.\ p[x'/x]\ \wedge\ x=e[x'/x]],
+\]
+the conjunct $p[x'/x]$ asserts that the precondition held in the \emph{old} state (with $x$ renamed to $x'$),
+while $x=e[x'/x]$ ties the \emph{new} value of $x$ to the evaluation of $e$ in that old state.
+This enforces that every state described by the postcondition is genuinely realizable by a single assignment step.
+
+For $x:=\mathsf{nondet}()$, the postcondition cannot constrain the new value of $x$ at all.
+The rule
+\[
+[p]\ x:=\mathsf{nondet}()\ [\ok:\exists x'.\,p]
+\]
+says: a final store is reachable iff it agrees with some pre-store satisfying $p$ on all variables
+except possibly $x$ (the existential $x'$ forgets the old value of $x$ so that constraints on $x$
+in $p$ do not incorrectly survive).
+
+If $f$ mentions only variables that $C$ does not modify, then $f$ is invariant along executions of $C$.
+Hence we can conjoin $f$ to both sides:
+\[
+[p]C[\epsilon:q]\ \Rightarrow\ [p\wedge f]C[\epsilon:q\wedge f].
+\]
+This rule is essential when adapting a proven summary to a richer calling context:
+you carry along facts about variables that the command cannot change.
+
+The construct $\mathsf{local}\ x.\,C$ allocates a fresh local $x$ for the duration of $C$ and
+restores the old value of $x$ afterward.
+The rule works in two conceptual steps:
+\begin{enumerate}[label=(\roman*)]
+\item \emph{Alpha-rename} the bound program variable $x$ to a fresh variable $y$ inside the body,
+      written $C(y/x)$, to avoid clashes with variables mentioned in the surrounding assertion.
+\item \emph{Hide} the final value of the local by existentially quantifying it in the post:
+      the outside world cannot observe which $y$ was used internally, only that some value existed.
+\end{enumerate}
+The existential $\exists y$ is not cosmetic: in IL you cannot freely weaken a postcondition, so
+you cannot in general derive $\exists y.\,q$ from $q$ by Consequence. The rule therefore builds
+$\exists y$ into the conclusion.
+
+These are meta-rules for reusing a proved triple in a new context.\\
+\textsc{Substitution II} is safe alpha-renaming of a logical variable: if $y$ is fresh,
+      replacing $x$ by $y$ in the assertions does not change meaning.\\
+\textsc{Substitution I} instantiates a logical variable $x$ with an expression $e$,
+      but only when $C$ does not mention $x$ nor any variables occurring in $e$.
+      Intuitively: the program cannot interfere with the meaning of $e$, so the instantiation is stable.
+
+\subsection{Soundness of Incorrectness Logic}\label{sec:IL-soundness}
+
+In this subsection we prove that the proof rules of Incorrectness Logic are
+\emph{sound} with respect to the relational semantics introduced earlier.
+The proof follows the standard rule-by-rule style:
+each axiom is semantically valid, and each inference rule preserves semantic validity.
+
+\paragraph{Semantic validity of IL triples.}
+Recall that each command \(C\) is interpreted by two relations
+\(\den{ C}_{\mathsf{ok}}, \den{ C}_{\mathsf{er}} \subseteq \Sigma\times\Sigma\),
+where \(\Sigma\) is the set of classical program states.
+For a predicate (set of states) \(p\subseteq\Sigma\) and a relation \(r\subseteq\Sigma\times\Sigma\),
+define the (forward) post-image operator
+\[
+\post(r)(p) \;\triangleq\; \{\sigma'\in\Sigma \mid \exists \sigma\in p.\; (\sigma,\sigma')\in r\}.
+\]
+An IL triple \([p]\,C\,[\mathsf{ok}:q][\mathsf{er}:r]\) is \emph{semantically valid}, written
+\(\models [p]\,C\,[\mathsf{ok}:q][\mathsf{er}:r]\), iff
+\[
+q \subseteq \post(\den{ C}_{\mathsf{ok}})(p)
+\qquad\text{and}\qquad
+r \subseteq \post(\den{ C}_{\mathsf{er}})(p).
+\]
+(Equivalently, for each exit condition \(\epsilon\in\{\mathsf{ok},\mathsf{er}\}\),
+\(\models [p]\,C\,[\epsilon:q]\) iff \(q\subseteq \post(\den{ C}_{\epsilon})(p)\).)
+
+\paragraph{A characterization lemma.}
+We will use the following equivalent, ``witness-style'' formulation of under-approximation.
+
+\begin{lemma}[Characterization of under-approximation]\label{lem:char-under}
+For any relation \(r\subseteq\Sigma\times\Sigma\) and predicates \(p,q\subseteq\Sigma\),
+\[
+q \subseteq \post(r)(p)
+\quad\Longleftrightarrow\quad
+\forall \sigma'\in q.\; \exists \sigma\in p.\; (\sigma,\sigma')\in r.
+\]
+\end{lemma}
+
+\begin{proof}
+(\(\Rightarrow\)) If \(\sigma'\in q\subseteq \post(r)(p)\), then by definition of \(\post\)
+there exists \(\sigma\in p\) such that \((\sigma,\sigma')\in r\).
+
+(\(\Leftarrow\)) Suppose \(\forall\sigma'\in q.\exists\sigma\in p.(\sigma,\sigma')\in r\).
+Then every \(\sigma'\in q\) belongs to \(\post(r)(p)\) by the definition of \(\post\),
+hence \(q\subseteq \post(r)(p)\).
+\end{proof}
+
+\paragraph{Algebraic facts about \(\post\).}
+The proofs below repeatedly use two elementary properties.
+
+\begin{lemma}[\(\post\) distributes over union and composes over relational composition]
+\label{lem:post-algebra}
+Let \(r_1,r_2\subseteq\Sigma\times\Sigma\) be relations and \(p\subseteq\Sigma\) a predicate.
+Then:
+\[
+\post(r_1\cup r_2)(p)=\post(r_1)(p)\cup\post(r_2)(p),
+\qquad
+\post(r_1 ; r_2)(p)=\post(r_2)\big(\post(r_1)(p)\big),
+\]
+\end{lemma}
+
+\begin{proof}
+Both equalities follow directly by unfolding the definitions of \(\post\), relational union,
+and relational composition, and rearranging existential quantifiers.
+\end{proof}
+
+
+\begin{theorem}[Soundness of IL]\label{thm:IL-soundness}
+Every IL derivation is semantically valid.
+More precisely, if \(\vdash [p]\,C\,[\mathsf{ok}:q][\mathsf{er}:r]\) is derivable using the proof
+rules of IL, then \(\models [p]\,C\,[\mathsf{ok}:q][\mathsf{er}:r]\).
+Equivalently, each IL axiom is semantically valid, and each IL inference rule preserves semantic validity.
+\end{theorem}
+
+\begin{proof}
+We proceed rule-by-rule, showing that each axiom is valid and each inference rule preserves validity.
+
+\medskip
+\noindent\textbf{$\mathsf{empty}$.}
+The axiom asserts \(\vdash [p]\,C\,[\epsilon:\false]\).
+Semantically, \(\emptyset \subseteq X\) holds for all sets \(X\), hence
+\(\models [p]\,C\,[\epsilon:\false]\).
+
+\medskip
+\noindent\textbf{$\mathsf{consequence}$.}
+Assume \(\models [p]\,C\,[\epsilon:q]\), \(p\subseteq p'\), and \(q'\subseteq q\).
+Since \(\post(\den{ C}_{\epsilon})\) is monotone in its argument,
+\( \post(\den{ C}_{\epsilon})(p)\subseteq \post(\den{ C}_{\epsilon})(p')\).
+Thus \(q'\subseteq q\subseteq \post(\den{ C}_{\epsilon})(p)\subseteq
+\post(\den{ C}_{\epsilon})(p')\), i.e.,
+\(\models [p']\,C\,[\epsilon:q']\).
+
+\medskip
+\noindent\textbf{$\mathsf{disjunction}$.}
+Assume \(\models [p_1]\,C\,[\epsilon:q_1]\) and \(\models [p_2]\,C\,[\epsilon:q_2]\).
+Then \(q_1\subseteq \post(\den{ C}_{\epsilon})(p_1)\) and
+\(q_2\subseteq \post(\den{ C}_{\epsilon})(p_2)\), hence
+\(
+q_1\cup q_2 \subseteq \post(\den{ C}_{\epsilon})(p_1)\cup
+        \post(\den{ C}_{\epsilon})(p_2)
+      = \post(\den{ C}_{\epsilon})(p_1\cup p_2)
+\)
+by Lemma~\ref{lem:post-algebra}. Therefore
+\(\models [p_1\vee p_2]\,C\,[\epsilon:q_1\vee q_2]\).
+
+\medskip
+\noindent\textbf{\(\mathsf{skip}\), \(\mathsf{error}\), \(\mathsf{assume}\).}
+These are immediate from the semantics:
+\[
+\den{ \mathsf{skip}}_{\mathsf{ok}}=\{(\sigma,\sigma)\mid \sigma\in\Sigma\},
+\quad
+\den{ \mathsf{skip}}_{\mathsf{er}}=\emptyset,
+\]
+\[
+\den{ \mathsf{error}}_{\mathsf{ok}}=\emptyset,
+\quad
+\den{ \mathsf{error}}_{\mathsf{er}}=\{(\sigma,\sigma)\mid \sigma\in\Sigma\},
+\]
+\[
+\den{ \mathsf{assume}\ b}_{\mathsf{ok}}=\{(\sigma,\sigma)\mid \sigma\models b\},
+\quad
+\den{ \mathsf{assume}\ b}_{\mathsf{er}}=\emptyset.
+\]
+From these, one calculates \(\post(\den{ \cdot}_\epsilon)(p)\) and checks that each
+corresponding axiom postcondition is a subset of the computed post-image.
+
+\medskip
+\noindent\textbf{$\mathsf{assignment}$.}
+For deterministic assignment \(x:=e\), the semantic \(\mathsf{ok}\)-relation is
+\(
+\den{ x:=e}_{\mathsf{ok}}
+=\{(\sigma,\sigma[x\mapsto \den{ e}(\sigma)])\mid \sigma\in\Sigma\}
+\),
+and \(\den{ x:=e}_{\mathsf{er}}=\emptyset\).
+The IL assignment axiom produces a postcondition describing the set of all states obtained
+by updating \(x\) according to \(e\) from some pre-state in \(p\).
+By unfolding \(\post\) and the above relation, the axiom's postcondition is exactly
+\(\post(\den{ x:=e}_{\mathsf{ok}})(p)\), hence is certainly a subset of it.
+
+\medskip
+\noindent\textbf{$\mathsf{choice}$.}
+Let \(C=C_1 + C_2\) (nondeterministic choice), with semantics
+\(\den{ C}_{\epsilon}=\den{ C_1}_{\epsilon}\cup \den{ C_2}_{\epsilon}\).
+Assuming \(\models [p]\,C_1\,[\epsilon:q]\),
+we have \(q\subseteq \post(\den{ C_1}_{\epsilon})(p)\).
+Thus
+\[
+q \subseteq \post(\den{ C_1}_{\epsilon})(p)\cup
+                  \post(\den{ C_2}_{\epsilon})(p)
+              = \post(\den{ C_1}_{\epsilon}\cup\den{ C_2}_{\epsilon})(p)
+              = \post(\den{ C}_{\epsilon})(p),
+\]
+so \(\models [p]\,(C_1+C_2)\,[\epsilon:q]\). Similar argument if \(\models [p]\,C_2\,[\epsilon:q]\).
+
+\medskip
+\noindent\textbf{$\mathsf{sequencing}$.}
+Let \(C=C_1;C_2\). In the relational semantics, normal termination composes, while error
+short-circuits:
+\[
+\den{ C_1;C_2}_{\mathsf{ok}}
+= \den{ C_1}_{\mathsf{ok}} ; \den{ C_2}_{\mathsf{ok}},
+\qquad
+\den{ C_1;C_2}_{\mathsf{er}}
+= \den{ C_1}_{\mathsf{er}} \;\cup\;
+  \big(\den{ C_1}_{\mathsf{ok}} ; \den{ C_2}_{\mathsf{er}}\big).
+\]
+
+\emph{Normal sequencing rule.}
+Assume \(\models [p]\,C_1\,[\mathsf{ok}:q]\) and \(\models [q]\,C_2\,[\epsilon:r]\).
+Then \(q\subseteq \post(\den{ C_1}_{\mathsf{ok}})(p)\) and
+\(r\subseteq \post(\den{ C_2}_{\epsilon})(q)\).
+Therefore,
+\[
+r \subseteq \post(\den{ C_2}_{\epsilon})(q)
+  \subseteq \post(\den{ C_2}_{\epsilon})\big(\post(\den{ C_1}_{\mathsf{ok}})(p)\big)
+  = \post(\den{ C_1}_{\epsilon} ; \den{ C_2}_{\mathsf{ok}})(p)
+  \subseteq \post(\den{ C_1;C_2}_{\epsilon})(p),
+\]
+where we used Lemma~\ref{lem:post-algebra} and the definition of \(\den{ C_1;C_2}_{\mathsf{ok}}\),
+and in the \(\epsilon=\mathsf{er}\) case we use that
+\(\den{ C_1}_{\mathsf{er}} ; \den{ C_2}_{\mathsf{ok}}
+\subseteq \den{ C_1;C_2}_{\mathsf{er}}\).
+Hence \(\models [p]\,(C_1;C_2)\,[\epsilon:r]\) for this rule's conclusion.
+
+\emph{Short-circuit (error-first) sequencing rule.}
+Assume \(\models [p]\,C_1\,[\mathsf{er}:r]\).
+Then \(r\subseteq \post(\den{ C_1}_{\mathsf{er}})(p)\).
+Since \(\den{ C_1}_{\mathsf{er}} \subseteq \den{ C_1;C_2}_{\mathsf{er}}\),
+we have \(\post(\den{ C_1}_{\mathsf{er}})(p)\subseteq
+\post(\den{ C_1;C_2}_{\mathsf{er}})(p)\).
+Thus \(r\subseteq \post(\den{ C_1;C_2}_{\mathsf{er}})(p)\), i.e.,
+\(\models [p]\,(C_1;C_2)\,[\mathsf{er}:r]\).
+
+\medskip
+\noindent\textbf{$\mathsf{iteration}$.}
+Let \(C^\star\) denote Kleene iteration. One convenient presentation is via finite unrollings
+\(C^0\triangleq \mathsf{skip}\), \(C^{n+1}\triangleq C^n;C\), and:
+\[
+\den{ C^\star}_{\mathsf{ok}} = \bigcup_{n\ge 0}\den{ C^n}_{\mathsf{ok}},
+\qquad
+\den{ C^\star}_{\mathsf{er}} = \bigcup_{n\ge 0}\big(\den{ C^n}_{\mathsf{ok}} ; \den{ C}_{\mathsf{er}}\big).
+\]
+A key semantic equivalence is the ``unfolding law'':
+\[
+C^\star \;\equiv\; \mathsf{skip} \;+\; C^\star;C,
+\]
+meaning equality of both \(\mathsf{ok}\) and \(\mathsf{er}\) relations.
+
+\emph{Iterate-zero.}
+The rule concludes \([p]\,C^\star\,[\mathsf{ok}:p]\).
+This is sound because \(C^0=\mathsf{skip}\) is included among the unrollings of \(C^\star\),
+so \(p=\post(\den{ \mathsf{skip}}_{\mathsf{ok}})(p)\subseteq
+\post(\den{ C^\star}_{\mathsf{ok}})(p)\).
+
+\emph{Iterate-nonzero.}
+The rule (in the \(\epsilon\)-generic form) derives \([p]\,C^\star\,[\epsilon:q]\) from
+\([p]\,(C^\star;C)\,[\epsilon:q]\).
+This is sound because by the unfolding law,
+\(\den{ C^\star}_{\epsilon}=\den{\mathsf{skip}}_{\epsilon}\cup \den{ C^\star;C}_{\epsilon}\),
+hence \(\den{ C^\star;C}_{\epsilon}\subseteq \den{ C^\star}_{\epsilon}\),
+so \(\post(\den{ C^\star;C}_{\epsilon})(p)\subseteq \post(\den{ C^\star}_{\epsilon})(p)\),
+and therefore any \(q\subseteq\post(\den{ C^\star;C}_{\epsilon})(p)\) is also a subset of
+\(\post(\den{ C^\star}_{\epsilon})(p)\).
+
+\emph{Backwards-Variant.}
+This rule is specific to under-approximation:
+from a premise
+\[
+\vdash\ [p(n)\wedge \mathsf{nat}(n)]\,C\,[\mathsf{ok}:p(n{+}1)\wedge \mathsf{nat}(n)]
+\]
+it concludes
+\[
+\vdash\ [p(0)]\,C^\star\,[\mathsf{ok}:\exists n.\,p(n)\wedge \mathsf{nat}(n)].
+\]
+To show soundness, let \(\sigma\) be an arbitrary state satisfying \(\exists n.\,p(n)\wedge \mathsf{nat}(n)\).
+We must prove that \(\sigma \in \post(\den{ C^\star}_{\mathsf{ok}})(p(0))\).
+Choose a witness \(j\in\mathbb{N}\) such that \(\sigma\models p(j)\).
+If \(j=0\), then \(\sigma\in p(0)\), so \(\sigma\) is reachable by taking \(0\) iterations of \(C\),
+i.e., via the \(C^0=\mathsf{skip}\) unrolling of \(C^\star\).
+
+If \(j>0\), we use the premise in the \emph{under-approximate direction}:
+\(
+p(j)\subseteq \post(\den{ C}_{\mathsf{ok}})(p(j{-}1))
+\).
+By Lemma~\ref{lem:char-under}, from \(\sigma\in p(j)\) we obtain some \(\sigma_{j-1}\in p(j-1)\)
+with \((\sigma_{j-1},\sigma)\in\den{ C}_{\mathsf{ok}}\).
+If \(j-1>0\), we apply the same reasoning to \(\sigma_{j-1}\in p(j-1)\) to obtain
+\(\sigma_{j-2}\in p(j-2)\) and \((\sigma_{j-2},\sigma_{j-1})\in\den{ C}_{\mathsf{ok}}\),
+and so on. After finitely many steps, we obtain a chain
+\[
+\sigma_0\in p(0),
+\quad
+(\sigma_0,\sigma_1)\in\den{ C}_{\mathsf{ok}},
+\quad \ldots,\quad
+(\sigma_{j-1},\sigma_j)\in\den{ C}_{\mathsf{ok}},
+\quad
+\sigma_j=\sigma.
+\]
+This exactly means \((\sigma_0,\sigma)\in \den{ C^j}_{\mathsf{ok}}\subseteq \den{ C^\star}_{\mathsf{ok}}\),
+hence \(\sigma\in \post(\den{ C^\star}_{\mathsf{ok}})(p(0))\).
+Since \(\sigma\) was arbitrary, we conclude
+\(\exists n.\,p(n)\wedge\mathsf{nat}(n)\subseteq \post(\den{ C^\star}_{\mathsf{ok}})(p(0))\),
+which is the desired soundness statement.
+
+\medskip
+It remains to prove soundness of the rules (Constancy, Local Variable, Substitution~I/II).
+We will use two standard semantic facts about commands that \emph{do not mention} certain variables.
+
+\paragraph{Two semantic invariance lemmas.}
+Recall that for a store $\sigma$ and value $v\in\Val$, $\sigma[x\mapsto v]$ is the store
+agreeing with $\sigma$ everywhere except at $x$.
+
+\begin{lemma}[Untouched variables are preserved]\label{lem:untouched-vars}
+If $x\notin \Mod(C)$ and $(\sigma,\sigma')\in \den{C}_\epsilon$, then $\sigma'(x)=\sigma(x)$.
+More generally, if $X\cap \Mod(C)=\emptyset$, then $\sigma$ and $\sigma'$ agree on every $x\in X$.
+\end{lemma}
+
+% \begin{proof}
+% By structural induction on $C$ using the relational semantics (each construct only updates the
+% variables it assigns).
+% For atomic commands:
+% \begin{itemize}
+% \item $\mathsf{skip}$ and $\mathsf{error}$ leave the store unchanged (on $\mathsf{ok}$ and $\mathsf{er}$ respectively),
+% so every variable is preserved.
+% \item $\mathsf{assume}\ b$ is the identity relation on states satisfying $b$, so every variable is preserved.
+% \item $x:=e$ and $x:=\mathsf{nondet}()$ only assign to $x$, hence any $y\neq x$ is preserved.
+% \item $\mathsf{local}\ x.\,C$ restores $x$ after running $C$, and does not introduce assignments to variables
+% outside $\Mod(C)$ (and, in particular, does not assign to variables not in $\Mod(C)$).
+% \end{itemize}
+% For compound commands:
+% choice is union of relations, sequencing is relational composition, and iteration is a union of iterates.
+% In each case, preservation of variables not in $\Mod(C)$ follows immediately from the induction hypotheses
+% and the definition of $\Mod(\cdot)$ for the construct.
+% \end{proof}
+
+\begin{lemma}[Parametricity in fresh variables]\label{lem:parametricity}
+Let $z\notin \Free(C)$, where $\Free(C)$ denotes the set of program variables whose values $C$ may read or write.
+If $(\sigma,\sigma')\in \den{C}_\epsilon$, then for every $v\in\Val$,
+\[
+(\sigma[z\mapsto v],\ \sigma'[z\mapsto v])\in \den{C}_\epsilon.
+\]
+\end{lemma}
+
+% \begin{proof}
+% Again by structural induction on $C$.
+% If $z\notin\Free(C)$, then $C$ neither reads nor writes $z$, so changing $z$ in both the initial and final store
+% does not affect whether a pair belongs to the semantic relation. The inductive cases follow because:
+% union and relational composition are stable under pointwise store updates, and the $C^\star$-relation is a union
+% of the relations of its iterates.
+% \end{proof}
+
+\medskip
+\noindent\textbf{$\mathsf{constancy}$.}
+Assume $\models [p]\,C\,[\epsilon:q]$ and $\Mod(C)\cap \Free(f)=\emptyset$.
+We must show $\models [p\wedge f]\,C\,[\epsilon:q\wedge f]$, i.e.
+$q\cap f \subseteq \post(\den{C}_\epsilon)(p\cap f)$.
+
+Let $\sigma'\in q\cap f$. Since $\sigma'\in q$ and $\models [p]\,C\,[\epsilon:q]$,
+Lemma~\ref{lem:char-under} gives a witness $\sigma\in p$ with $(\sigma,\sigma')\in \den{C}_\epsilon$.
+Because $\Free(f)$ is disjoint from $\Mod(C)$, Lemma~\ref{lem:untouched-vars} implies that $\sigma$ and $\sigma'$
+agree on all variables on which $f$ depends; hence $\sigma'\models f$ implies $\sigma\models f$.
+Therefore $\sigma\in p\cap f$, and so $\sigma'\in \post(\den{C}_\epsilon)(p\cap f)$.
+Since $\sigma'$ was arbitrary in $q\cap f$, we conclude $q\cap f \subseteq \post(\den{C}_\epsilon)(p\cap f)$.
+
+\medskip
+\noindent\textbf{$\mathsf{local\ variable}$.}
+Assume $\models [p]\,C(y/x)\,[\epsilon:q]$ with $y$ fresh and $y\notin \Free(p,C)$.
+We must show $\models [p]\,(\mathsf{local}\ x.\,C)\,[\epsilon:\exists y.\,q]$.
+
+Let $\sigma_f \in \exists y.\,q$. By the semantics of $\exists y$, pick a value $v_2\in\Val$ such that
+$\sigma_f[y\mapsto v_2]\in q$.
+
+Since $\sigma_f[y\mapsto v_2]\in q$ and $\models [p]\,C(y/x)\,[\epsilon:q]$,
+Lemma~\ref{lem:char-under} yields a store $\sigma_i\in p$ such that
+\[
+(\sigma_i,\ \sigma_f[y\mapsto v_2]) \in \den{C(y/x)}_\epsilon.
+\]
+Write $v := \sigma_f(x)$ (the externally-visible value of $x$ in the final store). Because $x$ does not occur
+in $C(y/x)$ (it has been replaced by $y$), we have $x\notin \Mod(C(y/x))$, so by Lemma~\ref{lem:untouched-vars}
+the execution above preserves $x$; hence $\sigma_i(x)=\sigma_f(x)=v$.
+Also write $v_y := \sigma_f(y)$ (the actual, externally-visible value of the fresh variable $y$ in $\sigma_f$).
+
+Now define a swapping permutation $\pi$ on stores that exchanges $x$ and $y$ and leaves all other variables unchanged:
+$\pi(\sigma)(x)=\sigma(y)$, $\pi(\sigma)(y)=\sigma(x)$.
+Because $y$ is fresh (in particular $y\notin \Free(C)$), the command $C(y/x)$ is exactly the result of renaming
+$x$ to $y$ in $C$, and one checks (by a routine induction on $C$) that semantic execution is equivariant under $\pi$:
+\[
+(\sigma,\sigma')\in \den{C(y/x)}_\epsilon
+\quad\Longrightarrow\quad
+(\pi(\sigma),\pi(\sigma'))\in \den{C}_\epsilon.
+\]
+Applying this to the pair above gives
+\[
+(\pi(\sigma_i),\ \pi(\sigma_f[y\mapsto v_2])) \in \den{C}_\epsilon.
+\]
+Unfolding $\pi$, $\pi(\sigma_i)$ has $x=\sigma_i(y)$ (some value $v_1$) and $y=\sigma_i(x)=v$,
+while $\pi(\sigma_f[y\mapsto v_2])$ has $x=v_2$ and $y=\sigma_f(x)=v$.
+Since $y\notin \Free(C)$, we may change the value of $y$ in both endpoints to the external value $v_y$
+without affecting membership in the relation (Lemma~\ref{lem:parametricity} with $z=y$). Hence
+\[
+\Big(\ \pi(\sigma_i)[y\mapsto v_y],\ \pi(\sigma_f[y\mapsto v_2])[y\mapsto v_y]\ \Big)\in \den{C}_\epsilon.
+\]
+Finally, apply the semantics of $\mathsf{local}\ x.\,C$:
+\[
+\den{\mathsf{local}\ x.\,C}_\epsilon
+=\{(\tau[x\mapsto v],\ \tau'[x\mapsto v]) \mid (\tau,\tau')\in \den{C}_\epsilon,\ v\in\Val\}.
+\]
+Take $\tau := \pi(\sigma_i)[y\mapsto v_y]$ and $\tau' := \pi(\sigma_f[y\mapsto v_2])[y\mapsto v_y]$.
+Then $(\tau,\tau')\in \den{C}_\epsilon$, and overwriting $x$ with the external value $v$ yields:
+\[
+\tau[x\mapsto v] \in p
+\quad\text{(because $\tau$ differs from $\sigma_i$ only in $y$, and $y\notin \Free(p)$),}
+\]
+\[
+\tau'[x\mapsto v] = \sigma_f
+\quad\text{(since $\tau'$ has the same non-$x$ components as $\sigma_f$ and $x$ is overwritten to $v=\sigma_f(x)$).}
+\]
+Thus $(\tau[x\mapsto v],\ \tau'[x\mapsto v])\in \den{\mathsf{local}\ x.\,C}_\epsilon$ with $\tau[x\mapsto v]\in p$
+and $\tau'[x\mapsto v]=\sigma_f$, i.e.\ $\sigma_f\in \post(\den{\mathsf{local}\ x.\,C}_\epsilon)(p)$.
+Since $\sigma_f$ was arbitrary in $\exists y.\,q$, we conclude
+$\exists y.\,q \subseteq \post(\den{\mathsf{local}\ x.\,C}_\epsilon)(p)$ as required.
+
+\medskip
+\noindent\textbf{$\mathsf{substitution\ II}$.}
+Assume $\models [p]\,C\,[\epsilon:q]$ and let $y$ be fresh with $y\notin \Free(p,C,q)$.
+We must show $\models ([p]\,C\,[\epsilon:q])(y/x)$.
+
+Unfolding the notation, this conclusion is $\models [p(y/x)]\,C(y/x)\,[\epsilon:q(y/x)]$.
+Let $\pi$ be the swap of $x$ and $y$ as above. Since $y$ is fresh, we have the standard semantic equalities:
+\[
+\sigma \in p(y/x)\ \Longleftrightarrow\ \pi(\sigma)\in p,
+\qquad
+\sigma \in q(y/x)\ \Longleftrightarrow\ \pi(\sigma)\in q,
+\]
+and (by the same equivariance argument used above)
+\[
+(\sigma,\sigma')\in \den{C(y/x)}_\epsilon\ \Longleftrightarrow\ (\pi(\sigma),\pi(\sigma'))\in \den{C}_\epsilon.
+\]
+Now take any $\sigma'\in q(y/x)$. Then $\pi(\sigma')\in q$, and since $\models [p]\,C\,[\epsilon:q]$,
+Lemma~\ref{lem:char-under} yields $\rho\in p$ with $(\rho,\pi(\sigma'))\in \den{C}_\epsilon$.
+Let $\sigma := \pi(\rho)$. Then $\pi(\sigma)=\rho\in p$, so $\sigma\in p(y/x)$, and
+$(\sigma,\sigma')\in \den{C(y/x)}_\epsilon$ by equivariance. Hence $\sigma'\in \post(\den{C(y/x)}_\epsilon)(p(y/x))$.
+Since $\sigma'$ was arbitrary in $q(y/x)$, we obtain
+$q(y/x)\subseteq \post(\den{C(y/x)}_\epsilon)(p(y/x))$, i.e.\ $\models [p(y/x)]\,C(y/x)\,[\epsilon:q(y/x)]$.
+
+\medskip
+\noindent\textbf{$\mathsf{substitution\ I}$.}
+Assume $\models [p]\,C\,[\epsilon:q]$ and $(\Free(e)\cup\{x\})\cap \Free(C)=\emptyset$.
+Because $x\notin \Free(C)$, substituting $e$ for $x$ does not change the command, so the conclusion
+$([p]\,C\,[\epsilon:q])(e/x)$ amounts to $\models [p[e/x]]\,C\,[\epsilon:q[e/x]]$.
+
+Let $\sigma'\in q[e/x]$. By the usual meaning of assertion substitution,
+\[
+\sigma'\in q[e/x]\quad\Longleftrightarrow\quad \sigma'[x\mapsto \den{e}(\sigma')]\in q.
+\]
+Define $\bar\sigma' := \sigma'[x\mapsto \den{e}(\sigma')]$, so $\bar\sigma'\in q$.
+From $\models [p]\,C\,[\epsilon:q]$ and Lemma~\ref{lem:char-under}, pick $\bar\sigma\in p$ with
+\[
+(\bar\sigma,\bar\sigma')\in \den{C}_\epsilon.
+\]
+Since $(\Free(e)\cup\{x\})\cap \Free(C)=\emptyset$, the command $C$ neither reads nor writes any variable in
+$\Free(e)\cup\{x\}$. In particular:
+\begin{itemize}
+\item $x\notin \Free(C)$, so by Lemma~\ref{lem:parametricity} we may change $x$ simultaneously in both endpoints
+of a $C$-execution without leaving the relation;
+\item every variable in $\Free(e)\setminus\{x\}$ is untouched by $C$, so by Lemma~\ref{lem:untouched-vars} its value
+is preserved along the execution.
+\end{itemize}
+Now set $\sigma := \bar\sigma[x\mapsto \sigma'(x)]$ (i.e.\ change only $x$ in the initial store to match $\sigma'$).
+By Lemma~\ref{lem:parametricity} with $z=x$, from $(\bar\sigma,\bar\sigma')\in \den{C}_\epsilon$ we obtain
+\[
+(\sigma,\ \bar\sigma'[x\mapsto \sigma'(x)]) \in \den{C}_\epsilon.
+\]
+But $\bar\sigma'$ differs from $\sigma'$ only at $x$, and $\bar\sigma'[x\mapsto \sigma'(x)]=\sigma'$,
+so we have $(\sigma,\sigma')\in \den{C}_\epsilon$.
+
+It remains to show $\sigma\in p[e/x]$, i.e.\ $\sigma[x\mapsto \den{e}(\sigma)]\in p$.
+Because $C$ does not touch any variable in $\Free(e)\setminus\{x\}$ and $\sigma$ and $\sigma'$ agree on all those
+variables (they already agreed in $\bar\sigma$ and $\bar\sigma'$, and we only changed $x$),
+we have $\den{e}(\sigma)=\den{e}(\sigma')$.
+Also, by Lemma~\ref{lem:untouched-vars} (since $x\notin \Mod(C)$), the execution
+$(\bar\sigma,\bar\sigma')\in\den{C}_\epsilon$ preserves $x$, hence
+\[
+\bar\sigma(x)=\bar\sigma'(x)=\den{e}(\sigma').
+\]
+Therefore,
+\[
+\sigma[x\mapsto \den{e}(\sigma)]
+= \sigma[x\mapsto \den{e}(\sigma')]
+= \bar\sigma \in p,
+\]
+so indeed $\sigma\in p[e/x]$.
+We have shown: for arbitrary $\sigma'\in q[e/x]$, there exists $\sigma\in p[e/x]$ with $(\sigma,\sigma')\in \den{C}_\epsilon$,
+hence $q[e/x]\subseteq \post(\den{C}_\epsilon)(p[e/x])$.
+This is exactly $\models [p[e/x]]\,C\,[\epsilon:q[e/x]]$, completing soundness for Substitution~I.
+
+\medskip
+\end{proof}
+
+\subsection{Completeness of Incorrectness Logic}\label{sec:IL-completeness}
+
+\paragraph{From HL relative completeness to IL completeness.}
+In Section~2.5 we proved Cook-style \emph{relative completeness} for Hoare Logic:
+assuming the assertion logic can express weakest liberal preconditions and can prove all valid
+implications between assertions, every semantically valid Hoare triple is derivable.
+The need for these assumptions comes from the fact that HL uses a \emph{syntactic} assertion
+language whose expressiveness may be limited.
+
+IL admits a closely related completeness story, but with an important twist: 
+instead of syntactic assertions, we treat assertions \emph{semantically}
+as sets of states, and we treat implications/inclusions as an \emph{oracle} side-condition.
+With semantic predicates, expressiveness is built in, so completeness reduces to whether
+the proof rules are missing anything essential. We'll show they are now: every true IL triple
+(with mild side conditions) is derivable. The remaining assumptions are:
+(i) an oracle for inclusions needed by \textsc{Consequence}, and
+(ii) enough variables and naturals to support the \textsc{Back-Var} loop rule.
+
+
+\begin{definition}[Support and finite support]\label{def:finsup}
+Let $p\subseteq\States$ be a predicate and let $x\in\Var$.
+Say that $p$ is \emph{independent of $x$} if for all states $\sigma$ and all values $v,v'\in\Val$,
+\[
+\sigma[x\mapsto v]\in p \iff \sigma[x\mapsto v']\in p.
+\]
+A predicate $p$ is \emph{finitely-supported} if there exists a finite set $S\subseteq\Var$ such that
+$p$ is independent of every $x\notin S$.
+\end{definition}
+
+Intuitively, finitely-supported predicates depend only on finitely many variables; this matches the
+fact that typical syntactic assertions mention finitely many variables.
+
+\begin{theorem}[Completeness of IL (semantic/relative completeness)]\label{thm:IL-completeness}
+Let $C$ be any IL command and let $p,q\subseteq\States$ be finitely-supported predicates.
+If $\models [p]\,C\,[\epsilon:q]$, then $\vdash [p]\,C\,[\epsilon:q]$.
+Equivalently, every true IL triple involving finitely-supported predicates is provable.
+\end{theorem}
+
+\begin{remark}
+This theorem is the IL analogue of HL relative completeness:
+it is ``relative'' to the implication oracle,
+and it uses semantic predicates (so expressiveness is not a limiting factor).
+It does not contradict undecidability: the oracle can hide non-computable reasoning,
+just as the HL completeness theorem hides it in wlp-expressiveness and implication-proving.
+\end{remark}
+
+\begin{lemma}[Derivable exact post-image]\label{lem:IL-exactpost}
+For every IL command $C$, every exit
+$\epsilon\in\{\ok,\er\}$, and every finitely-supported predicate $p$,
+\[
+\vdash [p]\,C\,[\epsilon:\post_{\epsilon}(C)(p)].
+\]
+\end{lemma}
+
+\begin{proof}
+We prove the lemma by structural induction on $C$.
+Throughout, we repeatedly use Lemma~\ref{lem:post-algebra}  and Lemma~\ref{lem:char-under}
+\medskip
+\noindent\textbf{$\mathsf{skip}$.}
+By \textsc{Skip} we have
+$[p]\,\Skip\,[\ok:p]\,[\er:\false]$.
+But $\post_{\ok}(\Skip)(p)=p$ and $\post_{\er}(\Skip)(p)=\varnothing$ by semantics, so the rule is
+exactly the desired statement (no extra use of \textsc{Consequence} needed).
+
+\medskip
+\noindent\textbf{$\mathsf{error}$.}
+By \textsc{Error},
+$[p]\,\error()\,[\ok:\false]\,[\er:p]$.
+Semantically $\post_{\ok}(\error())(p)=\varnothing$ and $\post_{\er}(\error())(p)=p$,
+so again this is exactly the desired statement.
+
+\medskip
+\noindent\textbf{$\mathsf{assume}$.}
+By \textsc{Assume},
+$[p]\,\assume\,B\,[\ok:p\wedge B]\,[\er:\false]$.
+Semantically $\post_{\ok}(\assume\,B)(p)=p\cap \Guard(B)=p\wedge B$ and the error post-image is empty.
+
+\medskip
+\noindent\textbf{$\mathsf{(assign)}$ and $(\mathsf{nondet})$.}
+For deterministic assignment, \textsc{Assignment} gives
+\[
+[p]\ x:=e\ [\ok:\exists x'.\ p[x'/x]\ \wedge\ x = e[x'/x]]\ [\er:\false].
+\]
+Unfolding $\post_{\ok}(x:=e)(p)$ from the relational semantics shows that this postcondition
+describes \emph{exactly} the set of states reachable by executing $x:=e$ from some $p$-state,
+hence it is equal to $\post_{\ok}(x:=e)(p)$. Therefore, by \textsc{Consequence} using equality
+(both inclusions), we obtain
+$\vdash [p]\ x:=e\ [\ok:\post_{\ok}(x:=e)(p)]$ and also the $\er$-case (which is $\false$).
+
+The nondeterministic assignment case is analogous using \textsc{Nondet Assignment}.
+
+\medskip
+\noindent\textbf{$\mathsf{choice}$.}
+We prove the $\epsilon$-case (uniformly for $\ok$ or $\er$).
+By induction hypothesis,
+\[
+\vdash [p]\,C_1\,[\epsilon:\post_{\epsilon}(C_1)(p)]
+\qquad\text{and}\qquad
+\vdash [p]\,C_2\,[\epsilon:\post_{\epsilon}(C_2)(p)].
+\]
+Apply \textsc{Choice} twice (once for each branch) to lift these to $C_1+C_2$:
+\[
+\vdash [p]\,(C_1+C_2)\,[\epsilon:\post_{\epsilon}(C_1)(p)]
+\quad\text{and}\quad
+\vdash [p]\,(C_1+C_2)\,[\epsilon:\post_{\epsilon}(C_2)(p)].
+\]
+Now apply \textsc{Disjunction} with $p_1=p_2=p$ to combine the postconditions:
+\[
+\vdash [p]\,(C_1+C_2)\,[\epsilon:\post_{\epsilon}(C_1)(p)\ \vee\ \post_{\epsilon}(C_2)(p)].
+\]
+Finally, by semantics of choice,
+$\post_{\epsilon}(C_1+C_2)(p)=\post_{\epsilon}(C_1)(p)\cup \post_{\epsilon}(C_2)(p)$,
+so the right-hand side is exactly $\post_{\epsilon}(C_1+C_2)(p)$.
+A final \textsc{Consequence} (again using equality) yields the goal.
+
+\medskip
+\noindent\textbf{$\mathsf{sequencing}$.}
+We do $\ok$ and $\er$ separately.
+
+\emph{$\epsilon=\ok$.}
+Let $q \triangleq \post_{\ok}(C_1)(p)$.
+By IH, $\vdash [p]\,C_1\,[\ok:q]$.
+By IH again, $\vdash [q]\,C_2\,[\ok:\post_{\ok}(C_2)(q)]$.
+Apply \textsc{Seq-Ok} with $\epsilon=\ok$ to obtain
+\[
+\vdash [p]\,(C_1;C_2)\,[\ok:\post_{\ok}(C_2)(q)].
+\]
+By post-composition (Lemma~\ref{lem:post-algebra}),
+$\post_{\ok}(C_1;C_2)(p)=\post_{\ok}(C_2)(\post_{\ok}(C_1)(p))=\post_{\ok}(C_2)(q)$,
+so this is exactly the desired triple.
+
+\emph{$\epsilon=\er$.}
+The semantics gives the decomposition
+\[
+\post_{\er}(C_1;C_2)(p)
+=
+\post_{\er}(C_1)(p)\ \vee\
+\post_{\er}(C_2)\big(\post_{\ok}(C_1)(p)\big).
+\]
+Let $q \triangleq \post_{\ok}(C_1)(p)$ as above.
+By IH we have $\vdash [p]\,C_1\,[\er:\post_{\er}(C_1)(p)]$.
+Apply \textsc{Seq-Er} to get
+\[
+\vdash [p]\,(C_1;C_2)\,[\er:\post_{\er}(C_1)(p)].
+\]
+Also, by IH we have $\vdash [p]\,C_1\,[\ok:q]$ and $\vdash [q]\,C_2\,[\er:\post_{\er}(C_2)(q)]$,
+so by \textsc{Seq-Ok} (with $\epsilon=\er$) we get
+\[
+\vdash [p]\,(C_1;C_2)\,[\er:\post_{\er}(C_2)(q)].
+\]
+Combine these two error triples using \textsc{Disjunction} (again with the same pre $p$) to obtain
+\[
+\vdash [p]\,(C_1;C_2)\,[\er:\post_{\er}(C_1)(p)\ \vee\ \post_{\er}(C_2)(q)].
+\]
+The right-hand side is exactly $\post_{\er}(C_1;C_2)(p)$, so we are done.
+
+\medskip
+\noindent\textbf{$\mathsf{iteration}$.}
+Again we handle $\ok$ and $\er$ separately.
+
+\emph{$\epsilon=\ok$.}
+We must derive $[p]\,C^\star\,[\ok:\post_{\ok}(C^\star)(p)]$.
+
+Define a family of predicates $(p_n)_{n\in\mathbb{N}}$ by:
+\[
+p_0 \triangleq p,
+\qquad
+p_{n+1} \triangleq \post_{\ok}(C)(p_n).
+\]
+Intuitively, $p_n$ is the set of states reachable by $n$ successful iterations.
+
+Let $n$ be fresh for $p$ and $C$ (as required by \textsc{Back-Var}), and define the
+\emph{variant schema} $p(n)$ by the usual “arithmetical interpretation”
+\[
+p(n)\ \triangleq\ \bigvee_{k\in\mathbb{N}}\bigl((n{=}k)\wedge p_k\bigr).
+\]
+(So a state satisfying $p(n)$ has some numeric value $k$ stored in $n$ and is in $p_k$.)
+
+\smallskip
+\underline{show the \textsc{Back-Var} premise is true, hence derivable.}
+We claim that for each $n$,
+\[
+\models [\,p(n)\wedge\nat(n)\,]\,C\,[\ok:\,p(n{+}1)\wedge\nat(n)\,].
+\]
+Unfold semantic validity:
+we must show $p(n+1)\wedge\nat(n) \subseteq \post_{\ok}(C)(p(n)\wedge\nat(n))$.
+Take any $\sigma\in p(n{+}1)\wedge\nat(n)$ and write $k\triangleq \sigma(n)\in\mathbb{N}$.
+By the definition of $p(n{+}1)$, we have $\sigma\in p_{k+1}$, hence
+$\sigma\in \post_{\ok}(C)(p_k)$, so there exists $\sigma'\in p_k$ with
+$(\sigma',\sigma)\in \den{C}_{\ok}$.
+Since $n$ is fresh and $C$ does not modify $n$, we have $\sigma'(n)=\sigma(n)=k$, hence
+$\sigma'\in p(n)\wedge\nat(n)$.
+Therefore $\sigma\in \post_{\ok}(C)(p(n)\wedge\nat(n))$, as required.
+
+Now apply the induction hypothesis to the strict subcommand $C$ with precondition
+$p(n)\wedge\nat(n)$ to obtain the exact-post triple
+\[
+\vdash [\,p(n)\wedge\nat(n)\,]\,C\,[\ok:\,\post_{\ok}(C)(p(n)\wedge\nat(n))\,].
+\]
+Using the semantic inclusion proved above and \textsc{Consequence}, we derive the needed premise
+\[
+\vdash [\,p(n)\wedge\nat(n)\,]\,C\,[\ok:\,p(n{+}1)\wedge\nat(n)\,].
+\]
+
+\smallskip
+\underline{apply \textsc{Back-Var}.}
+By \textsc{Back-Var} we obtain
+\[
+\vdash [p(0)]\,C^\star\,[\ok:\exists n.\,p(n)\wedge\nat(n)].
+\]
+Since $p(0)=p_0=p$, this gives
+\[
+\vdash [p]\,C^\star\,[\ok:\exists n.\,p(n)\wedge\nat(n)].
+\]
+
+\smallskip
+\underline{identify $\exists n.\,p(n)\wedge\nat(n)$ with the exact post-image.}
+We show
+\[
+\post_{\ok}(C^\star)(p) \;=\; \bigvee_{n\in\mathbb{N}} p_n
+\qquad\text{and hence}\qquad
+\post_{\ok}(C^\star)(p) \;=\; \exists n.\,p(n)\wedge\nat(n).
+\]
+By semantics,
+$\den{C^\star}_{\ok}=\bigcup_{n\in\mathbb{N}}\den{C^n}_{\ok}$, hence by distribution of $\post$
+over unions (Lemma~\ref{lem:post-algebra}),
+\[
+\post_{\ok}(C^\star)(p)
+=
+\bigcup_{n\in\mathbb{N}} \post(\den{C^n}_{\ok})(p).
+\]
+But $\post(\den{C^n}_{\ok})(p)$ is exactly $p_n$ by repeated unfolding of the recursion
+$p_{n+1}=\post_{\ok}(C)(p_n)$.
+Finally, by the definition of $p(n)$ above, the existential $\exists n$ (together with $\nat(n)$)
+expresses precisely the countable union $\bigvee_{n\in\mathbb{N}} p_n$.
+Therefore $\exists n.\,p(n)\wedge\nat(n)$ is \emph{equal} to $\post_{\ok}(C^\star)(p)$.
+
+\smallskip
+\underline{conclude the desired triple by \textsc{Consequence}.}
+From the derived triple with post $\exists n.\,p(n)\wedge\nat(n)$ and the equality above,
+a final \textsc{Consequence} yields
+$\vdash [p]\,C^\star\,[\ok:\post_{\ok}(C^\star)(p)]$.
+
+\medskip
+\emph{$\epsilon=\er$.}
+We show $\vdash [p]\,C^\star\,[\er:\post_{\er}(C^\star)(p)]$.
+Let
+\[
+\mathit{frontier} \triangleq \post_{\ok}(C^\star)(p),
+\]
+the states reachable after some number of successful iterations.
+By the already-proven $\ok$-case,
+\[
+\vdash [p]\,C^\star\,[\ok:\mathit{frontier}].
+\]
+By the semantics of iteration, an $\er$-exit from $C^\star$ consists of some number of $\ok$-iterations
+reaching a frontier state, followed by one execution of $C$ that exits with $\er$; in particular,
+\[
+\post_{\er}(C^\star)(p) \subseteq \post_{\er}(C)(\mathit{frontier}).
+\]
+Equivalently, $\models [\mathit{frontier}]\,C\,[\er:\post_{\er}(C^\star)(p)]$.
+
+Apply the induction hypothesis to the strict subcommand $C$ with precondition $\mathit{frontier}$ to get
+\[
+\vdash [\mathit{frontier}]\,C\,[\er:\post_{\er}(C)(\mathit{frontier})].
+\]
+Using the inclusion $\post_{\er}(C^\star)(p) \subseteq \post_{\er}(C)(\mathit{frontier})$
+and \textsc{Consequence}, derive
+\[
+\vdash [\mathit{frontier}]\,C\,[\er:\post_{\er}(C^\star)(p)].
+\]
+Apply \textsc{Seq-Ok} with $\epsilon=\er$ to obtain
+\[
+\vdash [p]\,(C^\star;C)\,[\er:\post_{\er}(C^\star)(p)].
+\]
+Finally apply \textsc{Iter-NonZero} to conclude
+\[
+\vdash [p]\,C^\star\,[\er:\post_{\er}(C^\star)(p)].
+\]
+
+\medskip
+\noindent\textbf{$\mathsf{local \; var}$.}
+Let $\epsilon\in\{\ok,\er\}$.
+We must derive $[p]\,\mathsf{local}\ x.\,C_0\,[\epsilon:\post_{\epsilon}(\mathsf{local}\ x.\,C_0)(p)]$.
+
+Pick a fresh variable $y$ such that:
+(i) $p$ is independent of $y$,
+and (ii) $y$ is not free in $C_0$ (so renaming does not capture anything).
+Consider the renamed body $C_0(y/x)$.
+(We take the induction to be on the size of commands; renaming preserves size, so IH applies.)
+
+By induction hypothesis applied to $C_0(y/x)$, we have:
+\[
+\vdash [p]\,C_0(y/x)\,[\epsilon:\post_{\epsilon}(C_0(y/x))(p)].
+\]
+Apply the \textsc{Local Variable} rule to obtain
+\[
+\vdash [p]\ \mathsf{local}\ x.\,C_0\ [\epsilon:\exists y.\ \post_{\epsilon}(C_0(y/x))(p)].
+\]
+It remains to relate $\exists y.\post_{\epsilon}(C_0(y/x))(p)$ to the semantic post-image of
+$\mathsf{local}\ x.\,C_0$.
+
+\smallskip
+\underline{Claim.}\quad
+$\post_{\epsilon}(\mathsf{local}\ x.\,C_0)(p)\ \subseteq\ \exists y.\post_{\epsilon}(C_0(y/x))(p)$.
+
+\smallskip
+\emph{Proof of the claim.}
+Take any $\sigma_q\in \post_{\epsilon}(\mathsf{local}\ x.\,C_0)(p)$.
+By definition of $\post$, there exists $\sigma_p\in p$ such that
+$(\sigma_p,\sigma_q)\in \den{\mathsf{local}\ x.\,C_0}_{\epsilon}$.
+Unfolding the semantics of $\mathsf{local}$, this means:
+there exist values $v_0,v_1,v_2\in\Val$ and intermediate states such that the transition is witnessed by
+\[
+\sigma_p[x\mapsto v_0]
+\ \xrightarrow{\ \text{init}\ }\ 
+\sigma_p[x\mapsto v_1]
+\ \xrightarrow{\ C_0\ }\ 
+\sigma_1[x\mapsto v_2]
+\ \xrightarrow{\ \text{final}\ }\ 
+\sigma_q[x\mapsto v_0],
+\]
+where the outer value $v_0$ is restored after executing $C_0$.
+Now consider the renamed program $C_0(y/x)$.
+Because $p$ is independent of $y$, from $\sigma_p\in p$ we also have
+$\sigma_p[y\mapsto v_1]\in p$.
+Executing $C_0(y/x)$ from $\sigma_p[y\mapsto v_1]$ mimics the execution of $C_0$ from
+$\sigma_p[x\mapsto v_1]$, producing a final state $\sigma_q[y\mapsto v_2]$.
+Therefore $\sigma_q[y\mapsto v_2]\in \post_{\epsilon}(C_0(y/x))(p)$, and by the semantics of $\exists y$,
+$\sigma_q\in \exists y.\post_{\epsilon}(C_0(y/x))(p)$.
+This proves the inclusion.
+
+\smallskip
+Using the claim and \textsc{Consequence}, we can strengthen the derived triple for
+$\mathsf{local}\ x.\,C_0$ to obtain exactly
+\[
+\vdash [p]\ \mathsf{local}\ x.\,C_0\ [\epsilon:\post_{\epsilon}(\mathsf{local}\ x.\,C_0)(p)].
+\]
+
+\medskip
+This completes all cases of the induction, proving the lemma.
+\end{proof}
+
+\begin{proof}[Proof of Theorem~\ref{thm:IL-completeness}]
+Assume $\models [p]\,C\,[\epsilon:q]$ with $p,q$ finitely-supported.
+By validity, $q \subseteq \post_{\epsilon}(C)(p)$.
+By Lemma~\ref{lem:IL-exactpost}, $\vdash [p]\,C\,[\epsilon:\post_{\epsilon}(C)(p)]$.
+Apply \textsc{Consequence} with $q \subseteq \post_{\epsilon}(C)(p)$ to obtain
+$\vdash [p]\,C\,[\epsilon:q]$, as required.
+\end{proof}
+
+\begin{remark}
+In the above proof, the core rules for completeness are those for
+$\Skip$, $\assume$, $\error$, assignment, choice, sequencing, iteration, \textsc{Back-Var}, and local variables,
+together with \textsc{Consequence} and \textsc{Disjunction}.
+The variable-adaptation rules \textsc{Constancy} and \textsc{Substitution} are useful for reusing
+summaries in richer contexts, but are not required for the completeness argument itself.
+\end{remark}
+
+\end{document}
