@@ -492,6 +492,84 @@ Then:
 \end{enumerate}
 \end{lemma}
 
+\paragraph{Choi matrices}
+A second, extremely useful characterization of completely positive maps is via the
+\emph{Choi matrix}.
+
+Fix an orthonormal basis $\{\ket{i}\}_{i=1}^d$ of $H$ (where $d:=\dim H$), and define the
+(unnormalized) \emph{maximally entangled vector}
+\[
+  \ket{\Omega} \;:=\; \sum_{i=1}^d \ket{i}\otimes \ket{i}\ \in\ H\otimes H.
+\]
+(Using the normalized vector $\frac{1}{\sqrt d}\ket{\Omega}$ would only scale the Choi matrix by $1/d$
+and does not affect positivity or Löwner inequalities.)
+
+\begin{definition}[Choi matrix]\label{def:choi}
+For a superoperator $\mathcal{E}:L(H)\to L(H)$, its \emph{Choi matrix} is
+\[
+  J(\mathcal{E})
+  \;:=\;
+  (\mathcal{E}\otimes \Id)\bigl(\ket{\Omega}\!\bra{\Omega}\bigr)
+  \ \in\ L(H\otimes H).
+\]
+Equivalently,
+\[
+  J(\mathcal{E})
+  \;=\;
+  \sum_{i,j=1}^d \mathcal{E}(\ket{i}\!\bra{j})\ \otimes\ \ket{i}\!\bra{j}.
+\]
+\end{definition}
+
+The concrete matrix $J(\mathcal{E})$ depends on the chosen basis $\{\ket{i}\}$ through $\ket{\Omega}$,
+but changing basis conjugates $J(\mathcal{E})$ by a unitary on the second tensor factor.
+In particular, properties such as $J(\mathcal{E})\succeq 0$ and inequalities like
+$J(\mathcal{E})\sqsubseteq J(\mathcal{F})$ do \emph{not} depend on the basis choice.
+
+\begin{theorem}[]\label{thm:choi-cp}
+A superoperator $\mathcal{E}:L(H)\to L(H)$ is completely positive iff
+$ J(\mathcal{E}) \succeq 0. $
+\end{theorem}
+
+To connect the Choi matrix with TP/TNI conditions, recall that the transpose
+$X^{\mathsf T}$ is always taken with respect to the fixed basis $\{\ket{i}\}$.
+Let $\Tr_1$ denote the partial trace over the \emph{first} tensor factor of $H\otimes H$.
+
+\begin{lemma}[]\label{lem:choi-tni}
+Let $\mathcal{E}:L(H)\to L(H)$ be completely positive.
+Then:
+\[
+  \mathcal{E}\ \text{is TNI}
+  \quad\Longleftrightarrow\quad
+  \Tr_1\!\bigl(J(\mathcal{E})\bigr)\ \sqsubseteq\ \Id,
+\]
+and
+\[
+  \mathcal{E}\ \text{is TP}
+  \quad\Longleftrightarrow\quad
+  \Tr_1\!\bigl(J(\mathcal{E})\bigr)\ =\ \Id.
+\]
+\end{lemma}
+The Choi map respects the Löwner order (and will therefore be useful for monotone limits).
+
+\begin{lemma}[]\label{lem:choi-order}
+If $\mathcal{E}$ is a positive superoperator, then $J(\mathcal{E})\succeq 0$.
+More generally, for superoperators $\mathcal{E},\mathcal{F}$:
+\[
+  \mathcal{E}\sqsubseteq \mathcal{F}
+  \quad\Longrightarrow\quad
+  J(\mathcal{E})\sqsubseteq J(\mathcal{F}).
+\]
+\end{lemma}
+
+If $(E_n)$ is an increasing chain of quantum operations, then by Lemma~\ref{lem:choi-order}
+the Choi matrices $(J(E_n))$ form an increasing chain of PSD operators.
+By Lemma~\ref{lem:choi-tni}, $\Tr_1(J(E_n))\sqsubseteq \Id$, so $\Tr(J(E_n))=\Tr(\Tr_1(J(E_n)))\le \Tr(\Id)=d$.
+Thus the Choi matrices are increasing and uniformly trace-bounded, which (in finite dimension)
+guarantees existence of an operator limit $J=\lim_n J(E_n)\succeq 0$; the corresponding limit map
+$E$ is then CP (Choi's theorem) and TNI (Lemma~\ref{lem:choi-tni} by continuity of $\Tr_1$).
+This is exactly the mechanism used to justify that increasing limits preserve being a quantum operation.
+
+
 \begin{definition}[Heisenberg dual (adjoint) superoperator]\label{def:dual-superop}
 For a superoperator $\mathcal{E}:\LL(\mathcal{H})\to\LL(\mathcal{H})$, its \emph{dual} (or \emph{adjoint})
 $\mathcal{E}^\ast:\LL(\mathcal{H})\to\LL(\mathcal{H})$ is defined by
