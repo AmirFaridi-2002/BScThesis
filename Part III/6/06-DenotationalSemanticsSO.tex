@@ -1,0 +1,929 @@
+\documentclass[11pt]{article}
+
+\usepackage[a4paper,margin=1in]{geometry}
+\usepackage{amsmath,amssymb,amsthm,mathtools,mathrsfs}
+\usepackage{braket,stmaryrd}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage{tikz-cd}
+
+\newcommand{\LL}{\mathcal{L}}
+\newcommand{\Tr}{\mathrm{tr}}
+\newcommand{\Id}{\mathbf{1}}
+\newcommand{\QO}{\mathrm{QO}}
+\newcommand{\sq}{\sqsubseteq}
+\newcommand{\den}[1]{\llbracket #1 \rrbracket}
+\newcommand{\Var}{\mathsf{Var}}
+\newcommand{\Val}{\mathsf{Val}}
+\newcommand{\AExp}{\mathsf{AExp}}
+\newcommand{\BExp}{\mathsf{BExp}}
+\newcommand{\Cmd}{\mathsf{Cmd}}
+\newcommand{\post}{\operatorname{post}}
+\newcommand{\wlp}{\operatorname{wlp}}
+\newcommand{\Guard}{\operatorname{Guard}}
+\newcommand{\lfp}{\operatorname{lfp}}
+\newcommand{\supp}{\operatorname{supp}}
+\newcommand{\ok}{\mathsf{ok}}
+\newcommand{\er}{\mathsf{er}}
+\newcommand{\true}{\mathsf{true}}
+\newcommand{\false}{\mathsf{false}}
+\newcommand{\error}{\mathsf{error}}
+\newcommand{\abort}{\mathsf{abort}}
+\newcommand{\assume}{\mathsf{assume}}
+\newcommand{\assert}{\mathsf{assert}}
+\newcommand{\ifthenelse}[3]{\mathsf{if}\ #1\ \mathsf{then}\ #2\ \mathsf{else}\ #3}
+\newcommand{\whiledo}[2]{\mathsf{while}\ #1\ \mathsf{do}\ #2}
+\newcommand{\nat}{\mathsf{nat}}
+\newcommand{\infer}[3][]{\frac{#2}{#3}\,#1}
+\newcommand{\Skip}{\mathsf{skip}}
+\newcommand{\States}{\Sigma}
+\newcommand{\Pow}{\mathscr{P}}
+
+\renewcommand{\braket}[2]{\langle #1 | #2 \rangle}
+
+\newcommand{\Reg}{\mathsf{Reg}}
+\newcommand{\Done}{\downarrow}
+\newcommand{\Conf}[2]{\langle #1,\, #2\rangle}
+\newcommand{\step}[1]{\xrightarrow{#1}}
+\newcommand{\ptr}{\operatorname{tr}}
+\newcommand{\cyl}{\operatorname{cyl}}
+\newcommand{\Dens}{\mathcal{D}}
+\newcommand{\Dsub}[1]{\mathcal{D}_{\le 1}(#1)}
+\newcommand{\comp}[1]{\overline{#1}}
+
+
+\theoremstyle{plain}
+\newtheorem{theorem}{Theorem}[section]
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{claim}[theorem]{Claim}
+
+\theoremstyle{definition}
+\newtheorem{definition}[theorem]{Definition}
+
+\theoremstyle{remark}
+\newtheorem{remark}[theorem]{Remark}
+
+\begin{document}
+
+\begin{center}
+{\Large Quantum Programming Languages and Semantics}\\[0.5em]
+\end{center}
+\setcounter{section}{5}
+
+
+
+\section{Denotational semantics as super-operators}
+\label{sec:coqq-denotational}
+
+This section presents a denotational (compositional) semantics for qwhile programs in the
+style used by CoqQ: each command denotes a \emph{super-operator}, i.e.\ a linear map on
+operators. The key idea is that we interpret each program as a transformer of (subnormalized)
+density operators on the \emph{fixed} global Hilbert space
+$ H \;\cong\; \bigotimes_{x\in\Reg} H_x $ introduced earlier.
+
+
+
+\paragraph{Super-operators and quantum operations.}
+Let $L(H)$ be the complex vector space of linear operators on $H$.
+Recall that a \emph{super-operator} on $H$ is a linear map
+$ \mathcal{E}: L(H) \to L(H). $
+Operationally, we will apply such maps to program states, i.e.\ to partial density operators
+\[
+  \Dsub{H} \;:=\; \{\rho\in L(H):\ \rho\succeq 0\ \wedge\ \Tr(\rho)\le 1\}.
+\]
+The physically meaningful state transformers are those that are \emph{completely positive}
+and \emph{trace-nonincreasing}; these are commonly called \emph{quantum operations}.
+(Equivalently, they are exactly the maps admitting a Kraus form
+$\mathcal{E}(\rho)=\sum_i E_i \rho E_i^\dagger$ with $\sum_i E_i^\dagger E_i \preceq \Id$.)
+We will define denotations as super-operators and then prove that the denotations are in fact quantum operations.
+
+We write $\den{C}$ for the denotation of a qwhile command $C$.
+Formally, $\den{C}$ is a super-operator on $H$:
+\[
+  \den{C}: L(H)\to L(H),
+\]
+and it restricts to a map $\Dsub{H}\to \Dsub{H}$.
+
+A central design principle is \emph{locality}:
+primitive commands mention a subsystem $s\subseteq\Reg$ and act only on $H_s$, leaving
+$H_{\comp{s}}$ untouched. Denotationally, this is implemented using cylindrical extension.
+
+
+The denotation is defined by structural recursion on the syntax of $C$. Here we will use the same $\Cmd$ as defined 
+in the previous section, with a minor modification: we will use $\abort$ instead of $\error$, since abnormal terminations are not our focus here.
+\paragraph{Skip and error.}
+$
+  \den{\Skip}(\rho) \;:=\; \rho,
+  \qquad
+  \den{\abort}(\rho) \;:=\; 0.
+$ \\
+Thus $\Skip$ is the identity super-operator, while $\abort$ discards all probability mass and produces
+no output state: once $\abort$ is reached, the computation does not return a normal
+post-state, so it contributes $0$ to the overall (subnormalized) output.
+
+\paragraph{Sequencing.}
+Sequential composition is interpreted by function composition in the expected execution order:
+$
+  \den{C_1;C_2} \;:=\; \den{C_2}\circ \den{C_1},
+  \qquad\text{equivalently}\qquad
+  \den{C_1;C_2}(\rho) \;=\; \den{C_2}\!\bigl(\den{C_1}(\rho)\bigr).
+$ \\
+This clause formalizes that the output of $C_1$ becomes the input of $C_2$.
+Because each $\den{C}$ is linear on operators, $\den{C_1;C_2}$ is linear as well.
+
+\paragraph{Initialization.}
+For $\mathsf{init}\ \rho_s$, recall the reset operation
+$
+  \operatorname{Reset}_{s,\rho_s}(\rho) \;:=\; \rho_s \otimes \Tr_s(\rho).
+$
+Denotationally,
+\[
+  \den{\mathsf{init}\ \rho_s}(\rho)
+  \;:=\;
+  \rho_s \otimes \Tr_s(\rho).
+\]
+This captures that the old contents of subsystem $s$ are discarded (via partial trace), any prior
+entanglement across the cut $(s,\comp{s})$ is destroyed, and a fresh local state $\rho_s$ is prepared.
+
+\paragraph{Unitary application.}
+For $\mathsf{apply}\ U_s$ with $U_s$ unitary on $H_s$,
+\[
+  \den{\mathsf{apply}\ U_s}(\rho)
+  \;:=\;
+  U_s^{(s)}\,\rho\,\bigl(U_s^{(s)}\bigr)^\dagger.
+\]
+This is conjugation by the cylindrically-extended unitary, i.e.\ ``apply $U_s$ locally on $s$ and do
+nothing to $\comp{s}$.''
+
+\paragraph{Conditionals.}
+Let $M_s=\{(m,M_m)\}_{m\in\mathsf{Out}(M_s)}$ be a measurement on subsystem $s$ in Kraus form
+(with $\sum_m M_m^\dagger M_m=\Id_{H_s}$).
+The command
+\[
+  \mathsf{if}\ (\square m.\ M_s=m\rightarrow C_m)\ \mathsf{fi}
+\]
+measures $s$ and then executes $C_m$ on the corresponding post-measurement state.
+Denotationally, because the measurement outcome is not returned as an explicit classical value,
+the overall output is the \emph{sum} (mixture) of the branch outputs:
+\[
+  \den{\mathsf{if}\ (\square m.\ M_s=m\rightarrow C_m)\ \mathsf{fi}}(\rho)
+  \;:=\;
+  \sum_{m\in\mathsf{Out}(M_s)}
+  \den{C_m}\!\Bigl(M_m^{(s)}\,\rho\,\bigl(M_m^{(s)}\bigr)^\dagger\Bigr).
+\]
+Each branch state $M_m^{(s)}\rho(M_m^{(s)})^\dagger$ is subnormalized; its trace equals the probability
+mass of obtaining outcome $m$ from the current partial state $\rho$.
+Summing over $m$ therefore yields a single partial density operator that represents the full ensemble
+after the conditional.
+
+\subsection{While semantics: syntactic approximants and limits}
+\label{subsec:while-approximants}
+
+A while-loop can, in general, iterate an unbounded number of times, so its semantics cannot be given
+by a finite structural recursion. CoqQ resolves this by defining the loop as the limit of an
+increasing sequence of \emph{finite unrollings} (syntactic approximants). This construction is also
+standard in denotational accounts of classical while-languages.
+
+\paragraph{The loop and its measurement interface.}
+Fix a loop command
+\[
+  W \;\equiv\; \mathsf{while}\ M'_s = 1\ \mathsf{do}\ C\ \mathsf{od},
+\]
+where $M'_s=\{M_0,M_1\}$ is a two-outcome measurement on $H_s$ (so $M_0^\dagger M_0 + M_1^\dagger M_1=\Id_{H_s}$).
+Outcome $0$ terminates the loop; outcome $1$ executes the body $C$ and repeats.
+
+\paragraph{Syntactic approximants.}
+Define commands $W^{(n)}$ for integers $n\ge 0$ by:
+\[
+  W^{(0)} \;:=\; \mathsf{abort},
+\]
+and
+\[
+  W^{(n+1)}
+  \;:=\;
+  \mathsf{if}\ (\square b.\ M'_s=b \rightarrow D_b)\ \mathsf{fi},
+  \qquad\text{where}\qquad
+  D_0 := \Skip,\quad D_1 := C;W^{(n)}.
+\]
+Intuitively, $W^{(n)}$ represents ``run the loop for at most $n$ continue-iterations'':
+if we observe $n$ consecutive outcomes $1$, the approximant forces nontermination by falling back to
+$\mathsf{abort}$. Thus, $W^{(n)}$ captures exactly the contribution of executions that terminate
+within $n$ loop-iterations.
+
+Recall the Löwner order $\sq$ on Hermitian operators: $A\sq B$ iff $B-A\succeq 0$.
+It extends pointwise to super-operators by
+\[
+  \mathcal{E}\sq \mathcal{F}
+  \quad\!\!\iff\quad
+  \forall\rho\succeq 0,\ \mathcal{E}(\rho)\sq \mathcal{F}(\rho).
+\]
+The approximants form an increasing chain in this order. Concretely, one can prove 
+for every $n \ge 0$ and every $\rho\in\Dsub{H}$ that $\den{W^{(n)}}(\rho)\sq \den{W^{(n+1)}}(\rho)$.
+
+The intuitive reason is simple: allowing one more unrolling can only add more terminating behaviors,
+hence more positive output mass. Moreover, each $\den{W^{(n)}}(\rho)$ is bounded above by $\rho$ in
+trace (indeed $\Tr(\den{W^{(n)}}(\rho))\le \Tr(\rho)$), so the chain is increasing but bounded.
+
+\paragraph{Defining the loop as a limit.}
+Because $\{\den{W^{(n)}}(\rho)\}_{n\ge 0}$ is a non-decreasing sequence of positive operators
+bounded in trace, it has a least upper bound in the Löwner order. CoqQ uses monotone convergence
+principles on ordered Hilbert spaces to justify that the pointwise limit exists and is again a
+well-defined super-operator. We therefore \emph{define}:
+\[
+  \den{W}(\rho)
+  \;:=\;
+  \lim_{n\to\infty}\ \den{W^{(n)}}(\rho).
+\]
+Operationally, $\den{W}(\rho)$ is the total (subnormalized) output state contributed by all
+terminating executions of the loop, with the traces accounting for the total termination probability.
+
+Since each approximant captures termination within $n$ iterations, the scalar
+$\Tr(\den{W^{(n)}}(\rho))$ is the probability mass of terminating within $n$ iterations
+from initial state $\rho$. Consequently, the limit
+\[
+  \Tr(\den{W}(\rho))
+  \;=\;
+  \lim_{n\to\infty}\Tr(\den{W^{(n)}}(\rho))
+\]
+is the total probability of termination of the loop on input $\rho$.
+
+\paragraph{Relation to domain-theoretic least fixed points.}
+A classical domain-theoretic semantics interprets a while-loop as a least fixed point of a functional
+on a CPO of state transformers. In the present setting, define the measurement super-operators
+\[
+  \mathcal{M}_b(\rho) := M_b^{(s)}\,\rho\,\bigl(M_b^{(s)}\bigr)^\dagger
+  \qquad (b\in\{0,1\}).
+\]
+Then the loop equation informally reads:
+\[
+  \den{W}(\rho)
+  \;=\;
+  \mathcal{M}_0(\rho)\;+\;\den{W}\!\bigl(\den{C}(\mathcal{M}_1(\rho))\bigr),
+\]
+i.e.\ ``stop on outcome $0$, otherwise run $C$ and loop again''.
+We will show that the limit-of-approximants definition above coincides with the standard
+least-fixed-point semantics, using a lemma that connects suprema of increasing chains of quantum
+operations with pointwise limits of super-operators.
+
+\paragraph{Why super-operators?}
+There are two complementary reasons to take \emph{super-operators} as the
+semantic objects of qwhile commands.
+
+First, super-operators are the mathematically natural level at which quantum programs compose.
+Every primitive command we allow---local unitary evolution, initialization (reset), and measurement
+followed by classical control---acts on density operators by an operation of the form
+\[
+\rho \ \longmapsto\ \sum_i E_i\,\rho\,E_i^\dagger,
+\]
+possibly with a single Kraus operator (unitaries) or with a sum over branches (measurements and
+conditionals). This transformation is \emph{linear} in $\rho$ and is completely determined by the
+operators describing the physical action on the subsystem. Linearity is essential: it encodes the
+principle that a mixed input state (a probabilistic mixture of preparations) is transformed by the
+program into the corresponding mixture of outputs. As a result, sequential composition and program
+equivalence reduce to ordinary algebra of linear maps:
+\[
+\den{C_1;C_2} \;=\; \den{C_2}\circ \den{C_1}.
+\]
+
+Second, super-operators provide the right domain for giving a robust semantics of \textsf{while}.
+To interpret loops we need an order structure and a notion of limits for increasing chains of
+approximants. The Löwner order on positive operators lifts pointwise to super-operators, turning
+program denotations into an ordered space where one can define
+\[
+\den{\mathsf{while}\ M'_s=1\ \mathsf{do}\ C\ \mathsf{od}}
+\;=\;
+\lim_{n\to\infty}\ \den{W^{(n)}},
+\]
+and justify that this limit exists and yields a well-defined linear transformer.
+This ``limit-of-approximants'' viewpoint also aligns with the standard least-fixed-point semantics of
+while-programs, but avoids additional domain-theoretic machinery in the first presentation.
+
+Finally, although the intended semantic objects are \emph{quantum operations} (completely positive,
+trace-nonincreasing maps on density operators), it is technically convenient to define denotations
+at the broader super-operator level: it allows uniform linear-algebraic reasoning and smooth
+compositional definitions. One then proves, as a separate theorem, that every $\den{C}$ generated by
+the qwhile syntax is indeed a quantum operation.
+
+
+
+\begin{theorem}[]
+    For every command $C$, the denotation $\den{C}$ is a quantum operation 
+    (i.e., completely positive and trace-nonincreasing), and the loop 
+    semantics defined by the limit of syntactic approximants coincides with
+    the standard domain-theoretic semantics (least fixed point in the CPO of quantum
+    operations).
+\end{theorem}
+
+
+
+\begin{lemma}[]\label{lem:comp}
+If $E,F\in \QO(H)$, then $E\circ F\in \QO(H)$.
+\end{lemma}
+\begin{proof}
+\emph{CP:} $(E\circ F)\otimes I=(E\otimes I)\circ (F\otimes I)$, and composition of positive maps is positive.\\
+\emph{TNI:} for $A\succeq 0$,
+\[
+\Tr\bigl((E\circ F)(A)\bigr)=\Tr\bigl(E(F(A))\bigr)\le \Tr(F(A))\le \Tr(A).
+\]
+\end{proof}
+
+
+\begin{lemma}[]\label{lem:kraus}
+Kraus form implies quantum operation. That is, if
+\[
+E(A)=\sum_i K_i A K_i^\dagger
+\qquad\text{and}\qquad
+\sum_i K_i^\dagger K_i \preceq I,
+\]
+then $E$ is CP and TNI (hence $E\in \QO(H)$).
+\end{lemma}
+
+\begin{proof}
+\emph{CP:} immediate, since $E\otimes I$ has Kraus operators $\{K_i\otimes I\}$.\\
+\emph{TNI:} for $A\succeq 0$,
+\[
+\Tr(E(A))
+=\sum_i \Tr(K_i A K_i^\dagger)
+=\sum_i \Tr(K_i^\dagger K_i A)
+=\Tr\!\Bigl(\Bigl(\sum_i K_i^\dagger K_i\Bigr)A\Bigr)
+\le \Tr(A).
+\]
+\end{proof}
+
+
+\begin{definition}[]
+For super-operators $E,F:\LL(H)\to \LL(H)$, define
+\[
+E \sq F
+\quad\Longleftrightarrow\quad
+\forall\, A\succeq 0,\;\; E(A)\sq F(A).
+\]
+\end{definition}
+
+\begin{theorem}\label{thm:A}
+For every qwhile command $C$, $\den{C}\in \QO(H)$.
+\end{theorem}
+
+\begin{proof}
+Recall that $\QO(H)$ denotes the set of \emph{quantum operations} on $H$, i.e.\ super-operators
+$\mathcal{E}:L(H)\to L(H)$ that are completely positive (CP) and trace-nonincreasing (TNI).
+We prove the claim by structural induction on the syntax of $C$.
+
+\medskip\noindent
+\textit{Case 1: $C=\error$.}
+By definition, $\den{\error}(\rho)=0$ for all $\rho$. The zero map is CP (it preserves positivity
+even after tensoring with identities) and TNI since $\Tr(0)=0\le \Tr(\rho)$. Hence
+$\den{\error}\in\QO(H)$.
+
+\medskip\noindent
+\textit{Case 2: $C=\Skip$.}
+$\den{\Skip}(\rho)=\rho$. The identity super-operator is CP and trace-preserving (hence TNI).
+So $\den{\Skip}\in\QO(H)$.
+
+\medskip\noindent
+\textit{Case 3: $C=C_1;C_2$.}
+By the denotational clause for sequencing,
+$ \den{C_1;C_2} \;=\; \den{C_2}\circ \den{C_1}. $, and by the lemma \ref{lem:comp}, we have $\den{C_1;C_2}\in\QO(H)$.
+
+\medskip\noindent
+\textit{Case 4: $C=\mathsf{init}\ \rho_s$.}
+Let $s\subseteq\Reg$ and write $R:=\comp{s}$, so $H\cong H_s\otimes H_R$.
+By definition,
+\[
+\den{\mathsf{init}\ \rho_s}(\rho) \;=\; \rho_s \otimes \Tr_s(\rho).
+\]
+We show this map is a quantum operation by exhibiting Kraus operators.
+
+Fix an orthonormal basis $\{\ket{i}\}_i$ of $H_s$ and a spectral decomposition
+\[
+\rho_s=\sum_j p_j \ket{\psi_j}\!\bra{\psi_j},
+\qquad
+p_j\ge 0,\ \ \sum_j p_j=1.
+\]
+Define operators $K_{ij}\in L(H_s\otimes H_R)$ by
+\[
+K_{ij}:=\sqrt{p_j}\,\bigl(\ket{\psi_j}\!\bra{i}\otimes \Id_{H_R}\bigr).
+\]
+Then
+\[
+K_{ij}^\dagger K_{ij}
+=
+p_j\bigl(\ket{i}\!\bra{i}\otimes \Id_{H_R}\bigr),
+\]
+so
+\[
+\sum_{i,j} K_{ij}^\dagger K_{ij}
+=
+\Bigl(\sum_j p_j\Bigr)\Bigl(\sum_i \ket{i}\!\bra{i}\Bigr)\otimes \Id_{H_R}
+=
+\Id_{H_s}\otimes \Id_{H_R}
+=
+\Id.
+\]
+Hence the induced map is CP and trace-preserving (thus TNI). Moreover, for any $\rho$,
+\begin{align*}
+\sum_{i,j} K_{ij}\rho K_{ij}^\dagger
+&=\sum_{i,j} p_j(\ket{\psi_j}\!\bra{i}\otimes \Id)\,\rho\,(\ket{i}\!\bra{\psi_j}\otimes \Id)\\
+&=\sum_j p_j\Bigl(\ket{\psi_j}\!\bra{\psi_j}\otimes \sum_i (\bra{i}\otimes \Id)\rho(\ket{i}\otimes \Id)\Bigr)\\
+&=\Bigl(\sum_j p_j \ket{\psi_j}\!\bra{\psi_j}\Bigr)\otimes \Tr_s(\rho)\\
+&=\rho_s\otimes \Tr_s(\rho).
+\end{align*}
+Thus $\den{\mathsf{init}\ \rho_s}\in\QO(H)$.
+
+\medskip\noindent
+\textit{Case 5: $C=\mathsf{apply}\ U_s$.}
+Let $U_s$ be unitary on $H_s$. By definition,
+\[
+\den{\mathsf{apply}\ U_s}(\rho)
+\;=\;
+U_s^{(s)}\,\rho\,\bigl(U_s^{(s)}\bigr)^\dagger,
+\]
+where $U_s^{(s)}:=U_s\otimes \Id_{H_{\comp{s}}}$ is the cylindrical extension.
+This is a Kraus map with a single Kraus operator $U_s^{(s)}$, and
+$\bigl(U_s^{(s)}\bigr)^\dagger U_s^{(s)}=\Id$, so it is CP and trace-preserving (hence TNI).
+Therefore $\den{\mathsf{apply}\ U_s}\in\QO(H)$.
+
+\medskip\noindent
+\textit{Case 6: $C=\mathsf{if}\ (\square m.\ M_s=m\rightarrow C_m)\ \mathsf{fi}$.}
+Let $M_s=\{(m,M_m)\}_{m\in\mathsf{Out}(M_s)}$ be a measurement on $H_s$
+with $\sum_m M_m^\dagger M_m=\Id_{H_s}$.
+By definition,
+\[
+\den{\mathsf{if}\ (\square m.\ M_s=m\rightarrow C_m)\ \mathsf{fi}}(\rho)
+\;=\;
+\sum_{m\in\mathsf{Out}(M_s)}
+\den{C_m}\!\Bigl(M_m^{(s)}\,\rho\,\bigl(M_m^{(s)}\bigr)^\dagger\Bigr).
+\]
+
+\smallskip\noindent
+\emph{CP.} For each $m$, the map $\rho\mapsto M_m^{(s)}\rho(M_m^{(s)})^\dagger$ is CP (single Kraus
+operator). By IH, $\den{C_m}$ is CP, and composition preserves CP. Finally, a finite sum of CP maps
+is CP. Hence the whole denotation is CP.
+
+\smallskip\noindent
+\emph{TNI.} Let $\rho\succeq 0$. Using IH (each $\den{C_m}$ is TNI),
+\[
+\Tr\!\Bigl(\den{C_m}\bigl(M_m^{(s)}\rho(M_m^{(s)})^\dagger\bigr)\Bigr)
+\;\le\;
+\Tr\!\Bigl(M_m^{(s)}\rho(M_m^{(s)})^\dagger\Bigr).
+\]
+Summing over $m$ gives
+\begin{align*}
+\Tr\!\Bigl(\den{\mathsf{if}\cdots\mathsf{fi}}(\rho)\Bigr)
+&\le \sum_m \Tr\!\Bigl(M_m^{(s)}\rho(M_m^{(s)})^\dagger\Bigr)\\
+&= \Tr\!\Bigl(\Bigl(\sum_m (M_m^{(s)})^\dagger M_m^{(s)}\Bigr)\rho\Bigr)\\
+&= \Tr(\rho),
+\end{align*}
+since $\sum_m (M_m^{(s)})^\dagger M_m^{(s)}=\Id$ (cylindrical extension preserves completeness).
+Therefore the denotation is TNI, hence in $\QO(H)$.
+
+\medskip\noindent
+\textit{Case 7: $C=\mathsf{while}\ M'_s=1\ \mathsf{do}\ C_{\mathrm{body}}\ \mathsf{od}$.}
+Let $M'_s=\{M_0,M_1\}$ be a two-outcome measurement on $H_s$.
+As in Section~\ref{subsec:while-approximants}, define syntactic approximants $W^{(n)}$ by
+\[
+W^{(0)} := \abort,
+\qquad
+W^{(n+1)} :=
+\mathsf{if}\ (\square b.\ M'_s=b \rightarrow D_b)\ \mathsf{fi},
+\quad
+D_0:=\Skip,\ \ D_1:=C_{\mathrm{body}};W^{(n)}.
+\]
+The loop denotation is defined by the increasing limit
+\[
+\den{\mathsf{while}\ M'_s=1\ \mathsf{do}\ C_{\mathrm{body}}\ \mathsf{od}}
+\;:=\;
+\bigsqcup_{n\ge 0}\ \den{W^{(n)}}
+\;=\;
+\lim_{n\to\infty}\den{W^{(n)}}.
+\]
+
+\smallskip\noindent
+\emph{-each approximant denotes a quantum operation.}
+We show $\den{W^{(n)}}\in\QO(H)$ by induction on $n$.
+For $n=0$, $W^{(0)}=\abort$ and Case~1 applies.
+For the step $n\mapsto n+1$, the command $W^{(n+1)}$ is an \textsf{if} whose branches use only
+$\Skip$ and $C_{\mathrm{body}};W^{(n)}$. By IH and Cases~2--6, the denotations of these constructs are
+in $\QO(H)$, hence $\den{W^{(n+1)}}\in\QO(H)$.
+
+\smallskip\noindent
+\emph{-the approximant chain is nondecreasing.}
+Write $E_n:=\den{W^{(n)}}$.
+Intuitively, $W^{(n)}$ accounts for executions that terminate within at most $n$ loop-iterations,
+so allowing $n{+}1$ iterations can only add additional terminating probability mass. Formally, one
+shows (by induction on $n$) that $E_n\sq E_{n+1}$ in the pointwise Löwner order on super-operators:
+\[
+E_n\sq E_{n+1}\quad:\!\!\iff\quad \forall \rho\succeq 0,\ E_n(\rho)\sq E_{n+1}(\rho).
+\]
+
+
+\begin{lemma}[Approximants are nondecreasing]\label{lem:approx-nondecreasing}
+Let $W \equiv \mathsf{while}\ M'_s=1\ \mathsf{do}\ C_{\mathrm{body}}\ \mathsf{od}$ with
+$M'_s=\{M_0,M_1\}$ a two-outcome measurement on $H_s$, and let $W^{(n)}$ be the syntactic
+approximants as above. Write $E_n:=\den{W^{(n)}}$. Then $E_n\sq E_{n+1}$ for all $n\ge 0$, i.e.
+\[
+\forall n\ge 0,\qquad
+\forall \rho\succeq 0,\qquad
+E_n(\rho)\ \sq\ E_{n+1}(\rho).
+\]
+\end{lemma}
+
+\begin{proof}
+Fix $n\ge 0$. We first rewrite $E_{n+1}$ in a convenient unfolded form.
+
+\smallskip\noindent
+\emph{Unfolding.}
+By the denotational clause for \textsf{if} (specialized to outcomes $b\in\{0,1\}$) and using
+$\den{\Skip}(\rho)=\rho$ and $\den{C_1;C_2}=\den{C_2}\circ \den{C_1}$, we have for all $\rho$:
+\begin{align}
+E_{n+1}(\rho)
+&=\den{D_0}\!\Bigl(M_0^{(s)}\rho\bigl(M_0^{(s)}\bigr)^\dagger\Bigr)
+ \;+\;
+ \den{D_1}\!\Bigl(M_1^{(s)}\rho\bigl(M_1^{(s)}\bigr)^\dagger\Bigr)\nonumber\\
+&= M_0^{(s)}\rho\bigl(M_0^{(s)}\bigr)^\dagger
+ \;+\;
+ \bigl(E_n\circ \den{C_{\mathrm{body}}}\bigr)\!\Bigl(M_1^{(s)}\rho\bigl(M_1^{(s)}\bigr)^\dagger\Bigr).\label{eq:Enplus1-unfold}
+\end{align}
+Define two auxiliary (positive) maps on inputs $\rho\succeq 0$:
+\[
+T(\rho) := M_0^{(s)}\rho\bigl(M_0^{(s)}\bigr)^\dagger,
+\qquad
+B(\rho) := \den{C_{\mathrm{body}}}\!\Bigl(M_1^{(s)}\rho\bigl(M_1^{(s)}\bigr)^\dagger\Bigr).
+\]
+Then \eqref{eq:Enplus1-unfold} becomes simply
+\begin{equation}\label{eq:Enplus1-TB}
+E_{n+1}(\rho)=T(\rho)+E_n\bigl(B(\rho)\bigr).
+\end{equation}
+Similarly,
+\begin{equation}\label{eq:Enplus2-TB}
+E_{n+2}(\rho)=T(\rho)+E_{n+1}\bigl(B(\rho)\bigr).
+\end{equation}
+
+\smallskip\noindent
+\emph{Positivity facts.}
+If $\rho\succeq 0$, then $T(\rho)\succeq 0$ because $\rho\mapsto M_0^{(s)}\rho(M_0^{(s)})^\dagger$
+is a (single-Kraus) CP map. Also $B(\rho)\succeq 0$ because $\rho\mapsto M_1^{(s)}\rho(M_1^{(s)})^\dagger$
+is CP and $\den{C_{\mathrm{body}}}$ is CP by the outer induction hypothesis on program structure
+(the body is a strict subcommand of the loop).
+
+\smallskip\noindent
+\emph{Induction on $n$.}
+We prove $E_n\sq E_{n+1}$ for all $n$ by induction on $n$.
+
+\smallskip\noindent
+\underline{Base $n=0$.}
+$E_0=\den{W^{(0)}}=\den{\error}$, hence $E_0(\rho)=0$ for all $\rho$.
+Since $E_1(\rho)\succeq 0$ for all $\rho\succeq 0$ (by \eqref{eq:Enplus1-TB} with $n=0$),
+we have $E_0(\rho)=0\sq E_1(\rho)$.
+
+\smallskip\noindent
+\underline{Step.}
+Assume $E_n\sq E_{n+1}$, i.e.\ for all $X\succeq 0$, $E_n(X)\sq E_{n+1}(X)$.
+We must show $E_{n+1}\sq E_{n+2}$.
+
+Fix any $\rho\succeq 0$. Then $B(\rho)\succeq 0$, so applying the induction hypothesis to
+$X=B(\rho)$ yields
+\[
+E_n\bigl(B(\rho)\bigr)\ \sq\ E_{n+1}\bigl(B(\rho)\bigr).
+\]
+Adding the same positive operator $T(\rho)$ to both sides preserves the Löwner order, hence
+\[
+T(\rho)+E_n\bigl(B(\rho)\bigr)\ \sq\ T(\rho)+E_{n+1}\bigl(B(\rho)\bigr).
+\]
+Using \eqref{eq:Enplus1-TB} and \eqref{eq:Enplus2-TB}, this is exactly
+$E_{n+1}(\rho)\sq E_{n+2}(\rho)$.
+
+\smallskip\noindent
+Thus $E_n\sq E_{n+1}$ for all $n\ge 0$.
+\end{proof}
+
+\smallskip\noindent
+\emph{-increasing limits preserve being a quantum operation.}
+Since each $E_n$ is CP and TNI and $(E_n)$ is nondecreasing, the pointwise supremum
+$E:=\bigsqcup_{n\ge 0} E_n$ exists (in finite dimension) and remains CP and TNI.
+Equivalently, $E$ is a quantum operation and is the least upper bound of the chain.
+
+\begin{lemma}[]\label{lem:limit-QO}
+Let $(E_n)_{n\ge 0}$ be a nondecreasing chain in $\QO(H)$, i.e.
+\[
+\forall n,\qquad E_n \sq E_{n+1}
+\quad\!\!\iff\quad
+\forall \rho\succeq 0,\ E_n(\rho)\sq E_{n+1}(\rho).
+\]
+Then the pointwise supremum
+\[
+E \;:=\; \bigsqcup_{n\ge 0} E_n
+\]
+exists, is the least upper bound of the chain, and satisfies $E\in\QO(H)$ (hence $E$ is CP and TNI).
+\end{lemma}
+
+\begin{proof}
+Because $H$ is finite-dimensional, we can use the Choi--Jamio\l kowski representation.
+
+\smallskip\noindent
+\emph{-Choi matrices and their order.}
+Fix an orthonormal basis $\{\ket{i}\}_{i=1}^d$ of $H$ and let
+\[
+\ket{\Omega}:=\sum_{i=1}^d \ket{i}\otimes \ket{i}\in H\otimes H.
+\]
+For a super-operator $\mathcal{E}:L(H)\to L(H)$ define its Choi matrix
+\[
+J(\mathcal{E}) \;:=\; (\mathcal{E}\otimes \Id)\bigl(\ket{\Omega}\!\bra{\Omega}\bigr)\ \in L(H\otimes H).
+\]
+We use the following standard facts (Choi's theorem and its trace characterization):
+\begin{itemize}[leftmargin=*]
+\item[] $\mathcal{E}$ is CP iff $J(\mathcal{E})\succeq 0$.
+\item[] $\mathcal{E}$ is TNI iff $\Tr_1\!\bigl(J(\mathcal{E})\bigr)\preceq \Id$,
+where $\Tr_1$ denotes the partial trace over the \emph{first} tensor factor of $H\otimes H$.
+\item[] The assignment $\mathcal{E}\mapsto J(\mathcal{E})$ is linear and injective, hence determines
+$\mathcal{E}$ uniquely from $J(\mathcal{E})$.
+\end{itemize}
+
+Write $J_n:=J(E_n)$. Since each $E_n$ is CP, we have $J_n\succeq 0$ for all $n$.
+Moreover, $E_n\sq E_{n+1}$ implies $J_n\sq J_{n+1}$ because
+\[
+J_{n+1}-J_n
+=
+\bigl((E_{n+1}-E_n)\otimes \Id\bigr)\bigl(\ket{\Omega}\!\bra{\Omega}\bigr)\succeq 0
+\]
+(the map $E_{n+1}-E_n$ is positive by definition of $\sq$, hence so is its tensor extension).
+Thus $(J_n)$ is an increasing sequence in the Löwner order.
+
+\smallskip\noindent
+\emph{-boundedness and existence of the limit.}
+Each $E_n$ is TNI, so $\Tr_1(J_n)\preceq \Id$.
+Taking trace and using $\Tr(J_n)=\Tr(\Tr_1(J_n))$, we obtain a uniform trace bound:
+\[
+\Tr(J_n)\;=\;\Tr(\Tr_1(J_n))\;\le\;\Tr(\Id)=d
+\qquad\text{for all }n.
+\]
+Hence $(J_n)$ is an increasing sequence of PSD operators with uniformly bounded trace.
+In finite dimension this implies convergence: there exists a PSD operator $J$ such that
+\[
+J \;=\; \lim_{n\to\infty} J_n
+\qquad\text{and}\qquad
+J_n \sq J \ \text{ for all }n.
+\]
+(One way to see this is that the eigenvalues of $J_n$ increase monotonically but their sum is bounded by $d$,
+so each eigenvalue converges; equivalently, the cone of PSD matrices is closed and increasing bounded
+sequences converge.)
+
+\smallskip\noindent
+\emph{-define $E$ by the limit Choi matrix.}
+By injectivity of the Choi representation, there is a unique linear map
+$E:L(H)\to L(H)$ such that
+\[
+J(E)=J.
+\]
+We claim $E$ is exactly the least upper bound $\bigsqcup_n E_n$.
+
+\smallskip\noindent
+\emph{-$E$ is CP and TNI.}
+Since $J\succeq 0$, Choi's theorem gives that $E$ is CP.
+Also, partial trace is continuous, so
+\[
+\Tr_1(J) \;=\; \Tr_1\!\Bigl(\lim_{n\to\infty}J_n\Bigr)
+\;=\; \lim_{n\to\infty}\Tr_1(J_n)
+\;\preceq\; \Id,
+\]
+because each $\Tr_1(J_n)\preceq \Id$.
+Thus $E$ is TNI. Therefore $E\in\QO(H)$.
+
+\smallskip\noindent
+\emph{Step 5: $E$ is the least upper bound of $(E_n)$.}
+First, $E$ is an upper bound.
+Indeed, $J_n\sq J$ implies $J(E-E_n)=J-J_n\succeq 0$, hence $E-E_n$ is CP and therefore positive.
+Thus for all $\rho\succeq 0$,
+\[
+E_n(\rho)\sq E(\rho),
+\]
+i.e.\ $E_n\sq E$.
+
+Second, $E$ is the \emph{least} upper bound.
+Let $F$ be any upper bound, so $E_n\sq F$ for all $n$.
+Then $J_n=J(E_n)\sq J(F)$ for all $n$, hence taking $n\to\infty$ yields
+$J=\lim_n J_n \sq J(F)$.
+Therefore $J(F-E)=J(F)-J(E)\succeq 0$, so $F-E$ is CP and $E\sq F$.
+This shows $E$ is the least upper bound.
+
+\smallskip\noindent
+Hence the pointwise supremum $E=\bigsqcup_{n\ge 0}E_n$ exists and belongs to $\QO(H)$.
+\end{proof}
+
+\smallskip\noindent
+Therefore the loop denotation (defined as this supremum) lies in $\QO(H)$.
+
+\end{proof}
+
+
+\subsection{The domain-theoretic setup}
+
+The paper contrasts its loop semantics (a limit of syntactic approximants) with the classic
+domain-theoretic semantics (a least fixed point in a CPO of quantum operations), and then claims
+that the two coincide. We now prove this coincidence in our setting.
+
+The ``classic'' approach assumes $(\QO(H),\sq)$ is a CPO and that the loop functional is
+Scott-continuous, so that least fixed points exist and can be obtained via the Kleene construction.
+
+In our concrete finite-dimensional setting, we do not need to assume these abstract facts.
+We already proved the key concrete statement we need: for any nondecreasing $\omega$-chain of
+quantum operations, the pointwise supremum exists and yields a quantum operation
+(Lemma~\ref{lem:limit-QO}), and this supremum agrees with the corresponding operator limit.
+
+\medskip\noindent
+\textbf{Bottom element.}
+Let $\bot$ be the zero super-operator:
+\[
+  \bot(\rho):=0.
+\]
+Then $\bot\sq E$ for every positive map $E$, hence $\bot$ is the least element of $(\QO(H),\sq)$.
+
+\paragraph{The loop functional.}
+
+Fix a loop command in qwhile notation:
+\[
+  W\ \equiv\ \mathsf{while}\ M'_s=1\ \mathsf{do}\ C_{\mathrm{body}}\ \mathsf{od},
+\]
+where $M'_s=\{M_0,M_1\}$ is a two-outcome measurement on subsystem $s$.
+(Outcome $0$ terminates; outcome $1$ continues.)
+
+Define a functional $\Phi:\QO(H)\to \QO(H)$ by
+\[
+  \Phi(X)(\rho)
+  \;:=\;
+  M_0^{(s)}\,\rho\,\bigl(M_0^{(s)}\bigr)^\dagger
+  \;+\;
+  X\!\Bigl(\den{C_{\mathrm{body}}}\bigl(M_1^{(s)}\,\rho\,\bigl(M_1^{(s)}\bigr)^\dagger\bigr)\Bigr).
+\]
+This is the denotation of the one-step unfolding of the loop: measure the guard; if outcome is $0$,
+stop; if outcome is $1$, execute the body and then ``recur'', with the recursive call represented by
+the parameter $X$.
+
+\begin{lemma}\label{lem:phiQO}
+$\Phi$ maps $\QO(H)$ to $\QO(H)$.
+\end{lemma}
+
+\begin{proof}
+Fix $X\in\QO(H)$. We show $\Phi(X)\in\QO(H)$.
+
+\smallskip\noindent
+\emph{CP.}
+The map $\rho\mapsto M_0^{(s)}\rho(M_0^{(s)})^\dagger$ is CP (single Kraus operator).
+The map $\rho\mapsto \den{C_{\mathrm{body}}}(M_1^{(s)}\rho(M_1^{(s)})^\dagger)$ is a composition of
+quantum operations (apply a Kraus map, then $\den{C_{\mathrm{body}}}$), hence is CP.
+Composing with $X$ preserves CP, and a finite sum of CP maps is CP.
+Thus $\Phi(X)$ is CP.
+
+\smallskip\noindent
+\emph{TNI.}
+Let $\rho\succeq 0$. Using that $X$ is TNI and $\den{C_{\mathrm{body}}}$ is TNI
+(Theorem~\ref{thm:A}), we obtain
+\begin{align*}
+\Tr(\Phi(X)(\rho))
+&=
+\Tr\!\Bigl(M_0^{(s)}\rho(M_0^{(s)})^\dagger\Bigr)
++
+\Tr\!\Bigl(X\bigl(\den{C_{\mathrm{body}}}(M_1^{(s)}\rho(M_1^{(s)})^\dagger)\bigr)\Bigr)\\
+&\le
+\Tr\!\Bigl(M_0^{(s)}\rho(M_0^{(s)})^\dagger\Bigr)
++
+\Tr\!\Bigl(\den{C_{\mathrm{body}}}(M_1^{(s)}\rho(M_1^{(s)})^\dagger)\Bigr)\\
+&\le
+\Tr\!\Bigl(M_0^{(s)}\rho(M_0^{(s)})^\dagger\Bigr)
++
+\Tr\!\Bigl(M_1^{(s)}\rho(M_1^{(s)})^\dagger\Bigr)\\
+&=
+\Tr\!\Bigl(\bigl((M_0^{(s)})^\dagger M_0^{(s)}+(M_1^{(s)})^\dagger M_1^{(s)}\bigr)\rho\Bigr)\\
+&=
+\Tr(\rho),
+\end{align*}
+since $(M_0^{(s)})^\dagger M_0^{(s)}+(M_1^{(s)})^\dagger M_1^{(s)}=\Id$ by measurement completeness
+(cylindrical extension preserves the identity).
+So $\Phi(X)$ is TNI. Hence $\Phi(X)\in\QO(H)$.
+\end{proof}
+
+\paragraph{Approximants are iterates of $\Phi$ from $\bot$.}
+
+Let $(W^{(n)})_{n\ge 0}$ be the syntactic approximants for the loop $W$ defined earlier:
+\[
+W^{(0)} := \error,
+\qquad
+W^{(n+1)} :=
+\mathsf{if}\ (\square b.\ M'_s=b \rightarrow D_b)\ \mathsf{fi},
+\quad
+D_0:=\Skip,\ \ D_1:=C_{\mathrm{body}};W^{(n)}.
+\]
+Write $E_n:=\den{W^{(n)}}\in\QO(H)$.
+
+\begin{lemma}\label{lem:iterates}
+$E_0=\bot$ and $E_{n+1}=\Phi(E_n)$ for all $n\ge 0$.
+\end{lemma}
+
+\begin{proof}
+By denotation of $\error$, $E_0=\den{\error}=\bot$.
+
+For the step, expand $E_{n+1}$ using the denotational clauses for \textsf{if}, \textsf{skip}, and
+sequencing:
+\begin{align*}
+E_{n+1}(\rho)
+&=
+\den{\Skip}\!\Bigl(M_0^{(s)}\rho(M_0^{(s)})^\dagger\Bigr)
++
+\den{C_{\mathrm{body}};W^{(n)}}\!\Bigl(M_1^{(s)}\rho(M_1^{(s)})^\dagger\Bigr)\\
+&=
+M_0^{(s)}\rho(M_0^{(s)})^\dagger
++
+E_n\!\Bigl(\den{C_{\mathrm{body}}}(M_1^{(s)}\rho(M_1^{(s)})^\dagger)\Bigr)\\
+&=
+\Phi(E_n)(\rho).
+\end{align*}
+Thus $E_{n+1}=\Phi(E_n)$.
+In particular, for all $n$,
+$ E_n=\Phi^n(\bot). $
+\end{proof}
+
+
+The classic domain-theoretic semantics of the loop is the least fixed point
+\[
+  \lfp(\Phi),
+\]
+taken in $(\QO(H),\sq)$. The Kleene construction says that, for a Scott-continuous (or at least
+$\omega$-continuous) $\Phi$,
+\[
+  \lfp(\Phi)=\bigsqcup_{n\ge 0}\Phi^n(\bot).
+\]
+We now show directly that the supremum of the
+approximant denotations is a least fixed point of $\Phi$.
+
+\begin{lemma}\label{lem:lfp}
+Let $E_n:=\den{W^{(n)}}$ and define
+\[
+  E \;:=\; \bigsqcup_{n\ge 0} E_n.
+\]
+Then $E$ is a fixed point of $\Phi$ and is the least fixed point of $\Phi$ in $(\QO(H),\sq)$.
+\end{lemma}
+
+\begin{proof}
+
+By Lemma~\ref{lem:approx-nondecreasing}, $E_n\sq E_{n+1}$ for all $n$.
+By Lemma~\ref{lem:limit-QO}, the supremum $E=\bigsqcup_{n\ge 0}E_n$ exists and belongs to $\QO(H)$.
+
+\smallskip\noindent
+\emph{-$E$ is a fixed point of $\Phi$.}
+Using Lemma~\ref{lem:iterates}, $E_{n+1}=\Phi(E_n)$ for all $n$.
+Taking suprema of both sides yields
+\[
+  \bigsqcup_{n\ge 0} E_{n+1}
+  \;=\;
+  \bigsqcup_{n\ge 0} \Phi(E_n).
+\]
+Since shifting an $\omega$-chain does not change its supremum,
+$\bigsqcup_{n\ge 0} E_{n+1}=\bigsqcup_{n\ge 0} E_n=E$.
+So it remains to show
+\[
+  \Phi\!\Bigl(\bigsqcup_{n\ge 0}E_n\Bigr)
+  \;=\;
+  \bigsqcup_{n\ge 0}\Phi(E_n).
+\]
+Fix $\rho\succeq 0$. Write
+\[
+  T(\rho):=M_0^{(s)}\rho(M_0^{(s)})^\dagger,
+  \qquad
+  B(\rho):=\den{C_{\mathrm{body}}}(M_1^{(s)}\rho(M_1^{(s)})^\dagger).
+\]
+Then
+\[
+  \Phi(X)(\rho)=T(\rho)+X\bigl(B(\rho)\bigr).
+\]
+Using the pointwise definition of supremum in the Löwner order,
+\[
+  E\bigl(B(\rho)\bigr)
+  \;=\;
+  \bigsqcup_{n\ge 0} E_n\bigl(B(\rho)\bigr).
+\]
+Adding the fixed positive operator $T(\rho)$ preserves suprema:
+\[
+  T(\rho)+E\bigl(B(\rho)\bigr)
+  \;=\;
+  \bigsqcup_{n\ge 0}\bigl(T(\rho)+E_n\bigl(B(\rho)\bigr)\bigr).
+\]
+But $T(\rho)+E_n(B(\rho))=\Phi(E_n)(\rho)$, hence
+\[
+  \Phi(E)(\rho)=\bigsqcup_{n\ge 0}\Phi(E_n)(\rho).
+\]
+Since this holds for all $\rho\succeq 0$, we conclude $\Phi(E)=\bigsqcup_{n\ge 0}\Phi(E_n)$.
+Combining with $\bigsqcup_{n\ge 0}\Phi(E_n)=\bigsqcup_{n\ge 0}E_{n+1}=E$, we obtain $\Phi(E)=E$.
+
+\smallskip\noindent
+\emph{Step 3: $E$ is the least fixed point.}
+Let $F\in\QO(H)$ be any fixed point, $\Phi(F)=F$.
+Since $\bot\sq F$ and $\Phi$ is monotone, we have by induction
+\[
+  E_n=\Phi^n(\bot)\ \sq\ \Phi^n(F)=F
+  \qquad\text{for all }n.
+\]
+Taking suprema over $n$ yields $E=\bigsqcup_{n\ge 0}E_n\sq F$.
+Therefore $E$ is the least fixed point of $\Phi$.
+\end{proof}
+
+\end{document}
