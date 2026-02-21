@@ -1,0 +1,374 @@
+\documentclass[11pt]{article}
+
+\usepackage[a4paper,margin=1in]{geometry}
+\usepackage{amsmath,amssymb,amsthm,mathtools,mathrsfs}
+\usepackage{braket,stmaryrd}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage{tikz-cd}
+
+\newcommand{\LL}{\mathcal{L}}
+\newcommand{\Tr}{\mathrm{tr}}
+\newcommand{\Id}{\mathbf{1}}
+\newcommand{\QO}{\mathrm{QO}}
+\newcommand{\sq}{\sqsubseteq}
+\newcommand{\den}[1]{\llbracket #1 \rrbracket}
+\newcommand{\Var}{\mathsf{Var}}
+\newcommand{\Val}{\mathsf{Val}}
+\newcommand{\AExp}{\mathsf{AExp}}
+\newcommand{\BExp}{\mathsf{BExp}}
+\newcommand{\Cmd}{\mathsf{Cmd}}
+\newcommand{\post}{\operatorname{post}}
+\newcommand{\wlp}{\operatorname{wlp}}
+\newcommand{\Guard}{\operatorname{Guard}}
+\newcommand{\lfp}{\operatorname{lfp}}
+\newcommand{\supp}{\operatorname{supp}}
+\newcommand{\ok}{\mathsf{ok}}
+\newcommand{\er}{\mathsf{er}}
+\newcommand{\true}{\mathsf{true}}
+\newcommand{\false}{\mathsf{false}}
+\newcommand{\error}{\mathsf{error}}
+\newcommand{\abort}{\mathsf{abort}}
+\newcommand{\assume}{\mathsf{assume}}
+\newcommand{\assert}{\mathsf{assert}}
+\newcommand{\ifthenelse}[3]{\mathsf{if}\ #1\ \mathsf{then}\ #2\ \mathsf{else}\ #3}
+\newcommand{\whiledo}[2]{\mathsf{while}\ #1\ \mathsf{do}\ #2}
+\newcommand{\nat}{\mathsf{nat}}
+\newcommand{\infer}[3][]{\frac{#2}{#3}\,#1}
+\newcommand{\Skip}{\mathsf{skip}}
+\newcommand{\States}{\Sigma}
+\newcommand{\Pow}{\mathscr{P}}
+
+\renewcommand{\braket}[2]{\langle #1 | #2 \rangle}
+
+\newcommand{\Reg}{\mathsf{Reg}}
+\newcommand{\Done}{\downarrow}
+\newcommand{\Conf}[2]{\langle #1,\, #2\rangle}
+\newcommand{\step}[1]{\xrightarrow{#1}}
+\newcommand{\ptr}{\operatorname{tr}}
+\newcommand{\cyl}{\operatorname{cyl}}
+\newcommand{\Dens}{\mathcal{D}}
+\newcommand{\Dsub}[1]{\mathcal{D}_{\le 1}(#1)}
+\newcommand{\comp}[1]{\overline{#1}}
+\newcommand{\Mset}{\mathsf{Mset}}
+\newcommand{\mset}[1]{\{\!\{#1\}\!\}}  
+\newcommand{\msum}{\operatorname{Sum}} 
+\newcommand{\Reach}{\operatorname{Reach}}
+\newcommand{\Out}{\operatorname{Out}}
+\newcommand{\Mix}{\operatorname{Mix}}
+
+
+
+
+\theoremstyle{plain}
+\newtheorem{theorem}{Theorem}[section]
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{claim}[theorem]{Claim}
+
+\theoremstyle{definition}
+\newtheorem{definition}[theorem]{Definition}
+
+\theoremstyle{remark}
+\newtheorem{remark}[theorem]{Remark}
+
+\begin{document}
+
+\begin{center}
+{\Large Quantum Programming Languages and Semantics}\\[0.5em]
+\end{center}
+\setcounter{section}{6}
+
+
+
+\section{Relational Semantics}\label{sec:relational}
+
+This section introduces a second semantic view of qwhile programs that is particularly suited
+for under-approximate reasoning.
+In the previous section, we interpreted each command $C$ as a single state transformer
+$\den{C} : \LL(H)\to \LL(H)$ (a super-operator), so probabilistic branching is already
+``collapsed'' by summation into one output partial state (a mixture). This is exactly what makes
+denotational semantics compositional and algebraic, but it also hides the structure of
+\emph{which} final states are reachable along \emph{which} (classically-controlled) execution paths.
+
+The QIL paper therefore introduces a relational/collecting semantics that maps an input state
+to a \emph{collection} of reachable terminal states (separately for normal vs.\ abnormal exits),
+and only afterwards forms the probabilistic mixture of that collection.
+
+
+For qwhile we will keep in mind the following three, mutually consistent, semantic perspectives:
+
+\begin{enumerate}[leftmargin=*, label=$\roman*$]
+\item \textit{Operational semantics}:
+configurations $\Conf{C}{\rho}$ step to $\Conf{C'}{\rho'}$, and measurement-induced branching
+is represented by multiple possible successor configurations with subnormalized branch states.
+
+\item \textit{Super-operator denotation}:
+$\den{C}$ maps an input partial state $\rho$ to a single output partial state $\den{C}(\rho)$,
+obtained by summing (mixing) the contributions of all branches. 
+
+\item \textit{Relational/collecting denotation}:
+for each exit condition $\epsilon\in\{\ok,\er\}$ we assign a multiset of reachable terminal states
+$\den{C}_\epsilon(\rho)$; the mixture of reachable states is then obtained by summing that multiset.
+\end{enumerate}
+
+A set of reachable outcomes forgets multiplicities: two different execution paths might end in the
+same terminal state, and for some compositional constructions (notably sequential composition) it
+is technically convenient to remember this information.
+
+Let $A$ be any universe (here, $A=\Dsub{H}$).
+A \emph{multiset} over $A$ is a function $\nu : A \to \nat$; $\nu(a)$ is the multiplicity of $a$.
+We write $\Mset(A)$ for the set of multisets over $A$.
+The empty multiset is the constant-zero function, also written $0$ when no confusion arises.
+We use the multiset braces $\mset{a}$ for the singleton multiset: $\mset{a}(a)=1$ and
+$\mset{a}(b)=0$ for $b\neq a$.
+
+Multiset union is pointwise addition:
+\[
+(\nu_1 \uplus \nu_2)(a) \;:=\; \nu_1(a)+\nu_2(a).
+\]
+If $R_1,R_2 : \Dsub{H}\to \Mset(\Dsub{H})$ are multiset-valued semantic functions, we lift $\uplus$
+pointwise:
+\[
+(R_1 \uplus R_2)(\rho) \;:=\; R_1(\rho)\uplus R_2(\rho).
+\]
+Any multiset transformer $R:\Dsub{H}\to \Mset(\Dsub{H})$ can be seen as a \emph{weighted relation}:
+\[
+R(\rho)(\rho') = n
+\quad\text{means}\quad
+\text{``$\rho'$ is reachable from $\rho$ with multiplicity $n$.''}
+\]
+When we only care about reachability (existence), we can drop multiplicities and define
+\[
+\Reach_R(\rho) \;:=\; \{\rho' \in \Dsub{H} : R(\rho)(\rho')>0\}.
+\]
+This is the ``relational'' reading: a program induces (for each exit condition) a relation between
+input states and terminal states.
+
+Sequential composition of programs corresponds to composing multiset transformers in the obvious
+``run the first, then the second'' way.
+Given $R_1,R_2 : \Dsub{H}\to \Mset(\Dsub{H})$, define $(R_1\circ R_2):\Dsub{H}\to\Mset(\Dsub{H})$ by
+\[
+(R_1\circ R_2)(\rho)(\rho'')
+\;:=\;
+\sum_{\rho'\in\Dsub{H}} R_1(\rho)(\rho')\cdot R_2(\rho')(\rho'').
+\]
+Intuitively: each intermediate state $\rho'$ contributes all of $R_2(\rho')$,
+and multiplicities multiply along a path and add across alternative paths.
+
+We distinguish normal termination ($\ok$) from abnormal termination
+($\er$). In the collecting semantics, this distinction is made at the semantic type level:
+\[
+\den{C}_\epsilon \;:\; \Dsub{H} \longrightarrow \Mset(\Dsub{H})
+\qquad (\epsilon\in\{\ok,\er\}),
+\]
+where $\den{C}_\ok(\rho)$ is the multiset of terminal states reachable by executions that exit normally,
+and $\den{C}_\er(\rho)$ is the multiset of terminal states reachable by executions that exit due to $\error$.
+
+\emph{impossible executions} are represented by the zero operator $0\in \Dsub{H}$.
+Thus, when a particular exit condition is impossible, the denotation returns the singleton multiset
+$\mset{0}$ (which contributes no probability mass to mixtures).
+In this section, unlike the previous one, we use $\error$ instead of $\abort$ to distinguish between normal and erroneous termination.
+
+
+\subsubsection*{Inductive definition of $\den{C}_\epsilon$}
+
+Throughout, $\rho\in \Dsub{H}$, and all subsystem-local operators are interpreted via cylindrical
+extension, e.g.\ $M_m^{(s)} := M_m\otimes \Id_{H_{\comp{s}}}$ under the fixed identification
+$H\cong H_s\otimes H_{\comp{s}}$.
+
+\paragraph{Skip and error.}
+\[
+\den{\Skip}_\ok(\rho) := \mset{\rho},
+\qquad
+\den{\Skip}_\er(\rho) := \mset{0},
+\]
+\[
+\den{\error}_\ok(\rho) := \mset{0},
+\qquad
+\den{\error}_\er(\rho) := \mset{\rho}.
+\]
+Thus, $\Skip$ produces the current state as a normal outcome, while $\error$ produces the current
+state as an abnormal outcome; the other exit condition is impossible and is therefore mapped to
+the $0$-state multiset.
+
+\paragraph{Initialization and unitary application.}
+Initialization always terminates normally and resets subsystem $s$ to $\rho_s$:
+\[
+\den{\mathsf{init}\ \rho_s}_\ok(\rho) := \mset{\rho_s \otimes \Tr_s(\rho)},
+\qquad
+\den{\mathsf{init}\ \rho_s}_\er(\rho) := \mset{0}.
+\]
+Unitary application also always terminates normally:
+\[
+\den{\mathsf{apply}\ U_s}_\ok(\rho) :=
+\mset{U_s^{(s)}\,\rho\,\bigl(U_s^{(s)}\bigr)^\dagger},
+\qquad
+\den{\mathsf{apply}\ U_s}_\er(\rho) := \mset{0}.
+\]
+
+\paragraph{Conditionals.}
+Let $M_s=\{(m,M_m)\}_{m\in\Out(M_s)}$ be a measurement on $H_s$.
+For $\epsilon\in\{\ok,\er\}$,
+\[
+\den{\mathsf{if}\ (\square m.\ M_s=m\rightarrow C_m)\ \mathsf{fi}}_\epsilon(\rho)
+\;:=\;
+\biguplus_{m\in\Out(M_s)}
+\den{C_m}_\epsilon\!\Bigl(M_m^{(s)}\,\rho\,\bigl(M_m^{(s)}\bigr)^\dagger\Bigr).
+\]
+Each outcome $m$ produces a (subnormalized) post-measurement state; the conditional then
+collects the terminal states produced by the selected branch program $C_m$.
+This collecting clause is the multiset analogue of the super-operator clause in
+the previous section, where one sums branch \emph{states} rather than collecting them. 
+
+\paragraph{Sequencing.}
+Sequential composition splits into two cases, reflecting the short-circuiting behavior of $\error$ in
+the operational semantics:
+\[
+\den{C_1;C_2}_\ok \;:=\; \den{C_2}_\ok \circ \den{C_1}_\ok,
+\]
+\[
+\den{C_1;C_2}_\er
+\;:=\;
+\den{C_1}_\er \uplus \bigl(\den{C_2}_\ok \circ \den{C_1}_\er\bigr).
+\]
+The first line says: to exit normally, $C_1$ must exit normally and then $C_2$ must exit normally.
+The second line says: an abnormal exit happens either immediately in $C_1$ (in which case $C_2$
+is not executed), or after $C_1$ exits normally and $C_2$ exits abnormally.
+\paragraph{While loops.}
+Let
+\[
+W \;\equiv\; \mathsf{while}\ M'_s=1\ \mathsf{do}\ C\ \mathsf{od},
+\qquad
+M'_s=\{M_0,M_1\},
+\]
+where outcome $0$ terminates the loop and outcome $1$ executes the body and repeats.
+We define the collecting semantics of $W$ \emph{directly} as the multiset
+union of all \emph{finite} numbers of loop iterations, rather than introducing a separate syntactic
+approximant program.
+
+\smallskip\noindent
+Treat each guard outcome as a (singleton) multiset transformer on partial states:
+\[
+\mathcal{M}_b(\rho)\;:=\;\mset{\,M_b^{(s)}\,\rho\,\bigl(M_b^{(s)}\bigr)^\dagger\,}
+\qquad (b\in\{0,1\}),
+\]
+where $M_b^{(s)}:=M_b\otimes \Id_{H_{\comp{s}}}$ is the cylindrical extension.
+
+\smallskip\noindent
+For any multiset transformer $R:\Dsub{H}\to\Mset(\Dsub{H})$, define its iterates by
+\[
+R^{0}(\rho)\;:=\;\mset{\rho},
+\qquad
+R^{n+1}\;:=\;R^{n}\circ R,
+\]
+where $\circ$ is the composition on multiset transformers defined earlier.
+
+\smallskip\noindent
+\textbf{Normal termination ($\ok$).}
+A normal terminating execution of the loop consists of some number $n$ of \emph{continue} rounds
+(outcome $1$, then executing $C$ normally), followed by one \emph{stop} round (outcome $0$).
+Therefore we define
+\[
+\den{W}_{\ok}
+\;:=\;
+\biguplus_{n\in\nat}
+\Bigl(\,(\mathcal{M}_{1}\circ \den{C}_{\ok})^{n}\circ \mathcal{M}_{0}\Bigr),
+\]
+i.e.\ for each $\rho\in\Dsub{H}$,
+\[
+\den{W}_{\ok}(\rho)
+\;=\;
+\biguplus_{n\in\nat}
+\Bigl((\mathcal{M}_{1}\circ \den{C}_{\ok})^{n}\circ \mathcal{M}_{0}\Bigr)(\rho).
+\]
+The summand $n=0$ corresponds to immediate termination (observe $0$ right away); the summand
+$n=1$ corresponds to one continue-iteration (observe $1$, run $C$, then observe $0$); and so on.
+
+\smallskip\noindent
+\textbf{Abnormal termination ($\er$).}
+An abnormal termination of the loop can only come from an abnormal termination of the body $C$.
+Such an execution consists of $n$ successful continue-iterations (outcome $1$ and $C$ exits normally),
+followed by one continue outcome $1$ whose subsequent body execution exits abnormally.
+Thus we define
+\[
+\den{W}_{\er}
+\;:=\;
+\biguplus_{n\in\nat}
+\Bigl(\,(\mathcal{M}_{1}\circ \den{C}_{\ok})^{n}\circ (\mathcal{M}_{1}\circ \den{C}_{\er})\Bigr),
+\]
+i.e.\ for each $\rho$,
+\[
+\den{W}_{\er}(\rho)
+\;=\;
+\biguplus_{n\in\nat}
+\Bigl((\mathcal{M}_{1}\circ \den{C}_{\ok})^{n}\circ (\mathcal{M}_{1}\circ \den{C}_{\er})\Bigr)(\rho).
+\]
+
+\smallskip\noindent
+These definitions match the ``collect all reachable terminal states'' idea: each $n$ picks out
+the terminal states reachable by executions with exactly $n$ completed iterations, and the outer
+$\biguplus_{n\in\nat}$ collects (with multiplicity) the outcomes from \emph{all} finite iteration counts.
+The mixture of reachable states used later is then obtained by summing the resulting multiset.
+
+
+\paragraph{Mixture of reachable states.}
+For correctness-style reasoning, the super-operator denotation $\den{C}(\rho)$ is already a single
+partial density operator representing the post-execution ensemble.
+For incorrectness-style reasoning, however, we want first to \emph{collect} reachable outcomes and
+only then to form the ensemble mixture, because the under-approximate triple is phrased in terms
+of ``the mixture of reachable states''.
+
+Let $\nu\in \Mset(\Dsub{H})$ be a multiset of partial density operators.
+Define its \emph{mixture} (sum) by
+\[
+\msum(\nu) \;:=\; \sum_{\sigma\in\Dsub{H}} \nu(\sigma)\cdot \sigma.
+\]
+Because every $\sigma\succeq 0$, the partial sums form an increasing sequence in the Löwner order.
+In finite dimension, and for the multisets produced by qwhile programs, this sum converges and is
+well-defined.
+
+The denotational clauses for qwhile only generate (at most) countably many distinct terminal
+states from any fixed input, since each step introduces only finitely many measurement outcomes
+and looping generates at most countably many finite unrollings.
+Moreover, each terminal state is subnormalized, and the total trace mass of terminating outcomes
+is bounded by $\Tr(\rho)$ (intuitively: one cannot create probability mass).
+Therefore the trace of $\msum(\nu)$ is finite and bounded, which rules out divergence of the sum
+in finite dimension.
+
+\paragraph{Mixture of reachable states for a program.}
+For a command $C$ and exit condition $\epsilon\in\{\ok,\er\}$, define the \emph{exit-conditioned mixture}
+\[
+\Mix_\epsilon(C,\rho) \;:=\; \msum\!\bigl(\den{C}_\epsilon(\rho)\bigr)\ \in\ \Dsub{H}.
+\]
+Thus $\Mix_\ok(C,\rho)$ is the mixture of all normally terminating reachable states,
+and $\Mix_\er(C,\rho)$ is the mixture of all abnormally terminating reachable states.
+
+Sometimes we also write the total terminating mixture (forgetting the exit label) as
+\[
+\Mix(C,\rho) \;:=\; \Mix_\ok(C,\rho)\;+\;\Mix_\er(C,\rho).
+\]
+This is the most direct quantum analogue of ``collect all terminating outcomes and mix them.''
+
+The super-operator semantics collapses branching by
+summing the branch contributions immediately (e.g.\ in conditionals, it sums the post-measurement
+branch states after applying branch denotations). 
+By contrast, the collecting semantics first returns the multiset of branch results and only then
+sums them via $\msum$.
+
+These two perspectives coincide once we ``forget'' the exit condition and interpret $\error$ as
+non-returning (abort) at the super-operator level:
+\[
+\den{C}(\rho)\;=\;\Mix_\ok(C,\rho).
+\]
+Intuitively, $\den{C}(\rho)$ is exactly the mixture of all \emph{normally} reachable outcomes,
+because the super-operator semantics accounts only for returned post-states (and treats
+abnormal termination as contributing $0$).
+
+Later, the incorrectness triple will not talk about individual terminal states directly;
+instead, it talks about predicates that are under-approximated by the mixture of reachable states.
+The support-based under-approximation relation is what
+lets one extract ``there exists a bad outcome'' information from a single mixed state:
+even if bad states occur with small probability mass, they can still contribute support and thus be
+detectable by an under-approximate specification.
+
+\end{document}
