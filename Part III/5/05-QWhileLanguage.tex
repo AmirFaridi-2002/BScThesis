@@ -119,7 +119,7 @@ space that factors according to these register boundaries. Moreover, working wit
 
 \smallskip
 \noindent
-We tacitly fix a tensor-factor ordering/parenthesization convention so that expressions such as
+We fix a tensor-factor ordering/parenthesization convention so that expressions such as
 $H \cong H_s\otimes H_{\comp{s}}$ are well-defined (up to canonical unitary isomorphism). This lets us
 speak cleanly about commands that act only on $s$ while leaving $\comp{s}$ unchanged.
 
@@ -129,14 +129,13 @@ To represent probabilistic branching without constantly renormalizing, we use \e
 \[
   \Dsub{H}
   \;:=\;
-  \{\rho \in L(H)\;:\; \rho \succeq 0 \ \wedge\ \Tr(\rho)\le 1\}.
+  \{\rho \in L(H)\;:\; \rho \sqsupseteq 0 \ \wedge\ \Tr(\rho)\le 1\}.
 \]
 Intuitively, $\Tr(\rho)$ is the \emph{probability mass} of reaching $\rho$ along a particular execution path.
 Thus the same symbolic $\rho$ can simultaneously encode the post-state \emph{and} the probability of
 being in that post-state. The zero operator $0$ is allowed and represents an impossible (unreachable)
 state.
 
-\paragraph{Local operators and cylindrical extension.}
 A key design principle is \emph{locality}: commands target a subsystem $s\subseteq \Reg$ and act as the
 identity on the complement $\comp{s}$. If $A \in L(H_s)$ is a linear operator acting on subsystem $s$,
 its \emph{cylindrical extension} (identity extension) to the global space is
@@ -198,7 +197,7 @@ C_1;C_2
 \]
 Here:
 $s \subseteq \Reg$ ranges over subsystems.
-$\rho_s$ ranges over density operators on $H_s$ (i.e.\ $\rho_s\succeq 0$, $\Tr(\rho_s)=1$).
+$\rho_s$ ranges over density operators on $H_s$ (i.e.\ $\rho_s\sqsupseteq 0$, $\Tr(\rho_s)=1$).
 $U_s$ ranges over unitary operators on $H_s$.
 $M_s=\{(m,M_{m})\}_{m\in \mathsf{Out}(M_s)}$ is a measurement on $H_s$ in Kraus form,
   i.e.\ $\sum_{m} M_m^\dagger M_m = \Id_{H_s}$.
@@ -249,9 +248,9 @@ via cylindrical extension (e.g.\ $U_s^{(s)}$ and $M_m^{(s)}$). All rules below a
 whenever subsystem $s$ is involved, and with cylindrical extensions $A^{(s)}:=A\otimes \Id_{H_{\comp{s}}}$.
 
 \[
-\infer[(\textsc{Skip})]{\Conf{\Skip}{\rho}\ \step{\ok}\ \Conf{\Done}{\rho}}{}
+\infer[(\textsc{Skip})]{}{\Conf{\Skip}{\rho}\ \step{\ok}\ \Conf{\Done}{\rho}}
 \qquad
-\infer[(\textsc{Error})]{\Conf{\error}{\rho}\ \step{\er}\ \Conf{\Done}{\rho}}{}
+\infer[(\textsc{Error})]{}{\Conf{\error}{\rho}\ \step{\er}\ \Conf{\Done}{\rho}}
 \]
 \noindent
 The \textsc{Error} rule is the essence of abnormal termination: it stops execution immediately,
@@ -261,17 +260,17 @@ raises label $\er$, and returns the current quantum state unchanged.
 
 \[
 \infer[(\textsc{Seq-Done})]
-{\Conf{C_1;C_2}{\rho}\ \step{\ok}\ \Conf{C_2}{\rho'}}
 {\Conf{C_1}{\rho}\ \step{\ok}\ \Conf{\Done}{\rho'}}
+{\Conf{C_1;C_2}{\rho}\ \step{\ok}\ \Conf{C_2}{\rho'}}
 \qquad
 \infer[(\textsc{Seq-Step})]
-{\Conf{C_1;C_2}{\rho}\ \step{\ok}\ \Conf{C_1';C_2}{\rho'}}
 {\Conf{C_1}{\rho}\ \step{\ok}\ \Conf{C_1'}{\rho'}}
+{\Conf{C_1;C_2}{\rho}\ \step{\ok}\ \Conf{C_1';C_2}{\rho'}}
 \]
 \[
 \infer[(\textsc{Seq-Err})]
-{\Conf{C_1;C_2}{\rho}\ \step{\er}\ \Conf{\Done}{\rho'}}
 {\Conf{C_1}{\rho}\ \step{\er}\ \Conf{\Done}{\rho'}}
+{\Conf{C_1;C_2}{\rho}\ \step{\er}\ \Conf{\Done}{\rho'}}
 \]
 \noindent
 These sequencing rules express two behaviors:
@@ -282,13 +281,11 @@ terminates abnormally and $C_2$ is discarded.
 \vspace{0.6em}
 
 \[
-\infer[(\textsc{Init})]
+\infer[(\textsc{Init})]{}
 {\Conf{\mathsf{init}\ \rho_s}{\rho}\ \step{\ok}\ \Conf{\Done}{\rho_s \otimes \Tr_s(\rho)}}
-{}
 \qquad
-\infer[(\textsc{Apply})]
+\infer[(\textsc{Apply})]{}
 {\Conf{\mathsf{apply}\ U_s}{\rho}\ \step{\ok}\ \Conf{\Done}{U_s^{(s)}\,\rho\,\bigl(U_s^{(s)}\bigr)^\dagger}}
-{}
 \]
 \noindent
 The \textsc{Init} rule makes explicit that initialization \emph{forgets} whatever was stored in $s$ by
@@ -299,8 +296,8 @@ it preserves trace, so $\Tr(\rho)$ (the path weight) is unchanged.
 
 \[
 \infer[(\textsc{If})]
-{\Conf{\mathsf{if}\ (\square m.\ M_s=m\rightarrow C_m)\ \mathsf{fi}}{\rho}\ \step{\ok}\ \Conf{C_m}{M_m^{(s)}\,\rho\,\bigl(M_m^{(s)}\bigr)^\dagger}}
-{m\in \mathsf{Out}(M_s)}
+{}
+{\Conf{\mathsf{if}\ (\square m.\ M_s=m\rightarrow C_m)\ \mathsf{fi}}{\rho}\ \step{\ok}\ \Conf{C_m}{M_m^{(s)}\,\rho\,\bigl(M_m^{(s)}\bigr)^\dagger}, \qquad m\in \mathsf{Out}(M_s)}
 \]
 \noindent
 This rule formalizes \emph{measurement-controlled branching}. For each possible outcome $m$,
@@ -310,14 +307,12 @@ subnormalized: its trace equals the probability mass of seeing outcome $m$ on in
 \vspace{0.6em}
 
 \[
-\infer[(\textsc{While-0})]
+\infer[(\textsc{While-0})]{}
 {\Conf{\mathsf{while}\ M'_s=1\ \mathsf{do}\ C\ \mathsf{od}}{\rho}\ \step{\ok}\ \Conf{\Done}{M_0^{(s)}\,\rho\,\bigl(M_0^{(s)}\bigr)^\dagger}}
-{}
 \]
 \[
-\infer[(\textsc{While-1})]
+\infer[(\textsc{While-1})]{}
 {\Conf{\mathsf{while}\ M'_s=1\ \mathsf{do}\ C\ \mathsf{od}}{\rho}\ \step{\ok}\ \Conf{C;\ \mathsf{while}\ M'_s=1\ \mathsf{do}\ C\ \mathsf{od}}{M_1^{(s)}\,\rho\,\bigl(M_1^{(s)}\bigr)^\dagger}}
-{}
 \]
 \noindent
 The loop is driven by a two-outcome measurement. Outcome $0$ terminates the loop immediately;

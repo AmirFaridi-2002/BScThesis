@@ -54,16 +54,13 @@
 {\Large Classical Foundations}\\[0.5em]
 \end{center}
 
-% ============================================================
-% Section 1: Core classical setting
-% ============================================================
 
 \section{Core classical setting}\label{sec:classical-core}
 
 \noindent Understanding quantum verification requires a firm grasp of classical program logic.
 Traditionally, Hoare Logic (HL) ensures correctness by using \textit{over-approximation}
 to prove the \textit{absence} of bugs. In contrast, the more recent
-\textbf{Incorrectness Logic (IL)} provides a dual framework:
+Incorrectness Logic (IL) provides a dual framework:
 it uses \textit{under-approximation} to prove the \textit{presence} of bugs.
 
 Despite their differing goals, both logics are anchored in the same underlying mathematical
@@ -206,7 +203,7 @@ when we establish the foundations of Incorrectness Logic.
 
 The big-step operational semantics defined in the previous section induces a \textit{relational} meaning for commands. Rather than focusing on the step-by-step derivation, we view a program as a mathematical object that relates input states to output states.
 
-\begin{definition}[Relational Meaning]
+\begin{definition}[]
 The relational semantics of a command $c$, denoted by $\den{c}$, is a binary relation on states $\den{c} \subseteq \States \times \States$ defined by:
 \[
 \den{c} \;\triangleq\; \{ (\sigma, \sigma') \mid \langle c, \sigma \rangle \Downarrow \sigma' \}.
@@ -228,9 +225,8 @@ Let $\States_b = \{ \sigma \mid \den{b}(\sigma) = \mathsf{tt} \}$ and $\States_{
   =
   (\IdOn{\States_b} ; \den{c_1}) \cup (\IdOn{\States_{\neg b}} ; \den{c_2})
 \]
-where $\IdOn{S} \;\triangleq\; \{ (\sigma, \sigma) \mid \sigma \in S \}$ is the identity relation restricted to the set $S$.
+where $\IdOn{S} \;\triangleq\; \{ (\sigma, \sigma) \mid \sigma \in S \}$ is the identity relation restricted to the set $S$, and $;$ denotes relational composition (see below).
 
-\paragraph{Determinism as Functionality.}
 Because the underlying language is deterministic, the relation $\den{c}$ is \textit{functional} (or a partial function): for every $\sigma$, there is at most one $\sigma'$ such that $\sigma \den{c} \sigma'$. This ensures that for any initial state, the program either diverges (no related $\sigma'$) or terminates in a unique state.
 
 \subsection{Compositional Properties}\label{sec:compositional-properties}
@@ -246,7 +242,8 @@ The semantics of sequential execution coincides exactly with this algebraic comp
 \begin{equation}
   \den{c_1; c_2} = \den{c_1} ; \den{c_2}.
 \end{equation}
-
+Sometimes, we might write $R_2 \circ R_1$ instead. 
+Relational composition is monotonic with respect to set inclusion. If $\den{c_1} \subseteq \den{c_1'}$, then $(\den{c_1} ; \den{c_2}) \subseteq (\den{c_1'} ; \den{c_2})$. This property is foundational for Incorrectness Logic, which relies on the fact that an \textit{under-approximation} of a command's relation results in a valid under-approximation of the composed program.
 \paragraph{Iteration and Fixed Points.}
 The semantics of the \texttt{while} loop is more complex as it involves recursion. Relationally, $\den{\texttt{while } b \texttt{ do } c}$ is the smallest relation $R$ satisfying the following recursive equation:
 \[
@@ -258,12 +255,7 @@ Formally, we define the loop semantics as the limit of a sequence of relations r
   \item $R_{n+1} = (\IdOn{\States_{\neg b}}) \cup (\IdOn{\States_b} ; \den{c} ; R_n)$.
 \end{enumerate}
 Then $\den{\texttt{while } b \texttt{ do } c} = \bigcup_{n=0}^{\infty} R_n$. This construction establishes that a state pair is in the loop relation if and only if there exists some finite number of iterations $n$ that leads from the input to the output, terminating when the guard $b$ becomes false.
-\begin{mynote}
-TODO: Elaborate more on this. 
-\end{mynote}
 
-\paragraph{Monotonicity.}
-Relational composition is monotonic with respect to set inclusion. If $\den{c_1} \subseteq \den{c_1'}$, then $(\den{c_1} ; \den{c_2}) \subseteq (\den{c_1'} ; \den{c_2})$. This property is foundational for Incorrectness Logic, which relies on the fact that an \textit{under-approximation} of a command's relation results in a valid under-approximation of the composed program.
 
 \subsection{Predicates, post-images, and strongest postconditions}\label{sec:predicate-transformers}
 
@@ -271,7 +263,7 @@ This subsection introduces the semantic object that will play the central role
 in both correctness and incorrectness reasoning: the \emph{post-image} (also known
 as the strongest postcondition).
 
-\begin{definition}[Predicates as sets of states]
+\begin{definition}[]
 A predicate is a set of states $P \subseteq \States$.
 Equivalently, one may write predicates as boolean-valued maps
 $P:\States \to \mathsf{Prop}$; these views are interchangeable.
@@ -287,7 +279,7 @@ P \vee Q \equiv P \cup Q,\qquad
 \]
 \end{definition}
 
-\begin{definition}[The post-image transformer]
+\begin{definition}[]
 Given a command $c$ and a set of initial states $P$, the \emph{post-image} of $P$
 under $c$ is the set of all states that can be reached by running $c$ from some
 initial state in $P$:
@@ -304,29 +296,25 @@ as it can solve the Halting problem. We also may use $\post$ as a function:
 \]
 \end{definition}
 
-\paragraph{Strongest postcondition.}
 In a deterministic, partial-correctness setting, the strongest postcondition
 coincides with the post-image:
 \[
 \spc{c}{P} \;\triangleq\; \post(c)(P).
 \]
 The terminology ``strongest'' means that $\spc{c}{P}$ is the most precise
-postcondition that can follow from $P$ through $c$.
-
-\paragraph{Strongestness property.}
-A predicate $R$ is a \emph{postcondition} for $c$ from precondition $P$ if every
+postcondition that can follow from $P$ through $c$. A predicate $R$ is a \emph{postcondition} for $c$ from precondition $P$ if every
 terminating run from a $P$-state ends in an $R$-state, i.e.\ if $\post(c)(P)\subseteq R$.
 Then $\spc{c}{P}$ is the smallest such $R$ (smallest by $\subseteq$).
 
-Formally, for any $R\subseteq \States$:
-\[
+\noindent Formally, for any $R\subseteq \States$:
+$
 \post(c)(P) \subseteq R
 \quad\Longleftrightarrow\quad
 \forall \sigma\in P.\;\forall \sigma'.\;(\sigma,\sigma')\in\den{c} \Rightarrow \sigma'\in R.
-\]
+$
 
-\paragraph{Basic properties of $\post(c)$.}
-The operator $\post(c) : \mathcal{P}(\States)\to \mathcal{P}(\States)$ is monotone:
+
+\noindent The operator $\post(c) : \mathcal{P}(\States)\to \mathcal{P}(\States)$ is monotone:
 \[
 P \subseteq P' \;\Rightarrow\; \post(c)(P) \subseteq \post(c)(P').
 \]
@@ -401,10 +389,6 @@ and therefore
 \;=\;
 \left(\bigcup_{n\ge 0} X_n\right)\cap \bigl(\Guard(\neg b)\bigr).
 \]
-\begin{mynote}
-TODO: Integrate references to standard domain theory to justify the fixed-point
- construction of the while-loop.
-\end{mynote}
 
 
 \subsubsection*{Example: Kleene iteration for a countdown loop}
@@ -548,12 +532,11 @@ we have $\sigma'\in\post(c)(P)\subseteq Q$, hence $\sigma\in\wlp(c,Q)$.
 ($\Leftarrow$) Take $\sigma'\in\post(c)(P)$, so $\exists\sigma\in P$ with $(\sigma,\sigma')\in\den{c}$.
 Since $\sigma\in\wlp(c,Q)$, we obtain $\sigma'\in Q$.
 
-\paragraph{Correctness versus incorrectness as opposite inclusions.}
 Both Hoare Logic and Incorrectness Logic can be phrased using the same post-image
 operator.
 
 \begin{itemize}[leftmargin=1.5em]
-\item
+\item[]
 A (partial) Hoare triple $\{P\}\;c\;\{Q\}$ is semantically valid exactly when
 every terminating execution from $P$ ends in $Q$:
 \[
@@ -565,7 +548,7 @@ P \subseteq \wlp(c,Q).
 \]
 This is an \emph{over-approximation} statement about reachable states.
 
-\item
+\item[]
 An incorrectness-style triple $[P]\;c\;[Q]$ (in its simplest reachability form)
 is semantically valid when every state in $Q$ is reachable as a terminating final
 state from some initial state in $P$:
@@ -589,6 +572,5 @@ therefore be the conceptual bridge between correctness reasoning and
 incorrectness reasoning, and it will later generalize to the quantum setting
 where $\post$ becomes a transformer on quantum states.
 
-% End of Section 1
 
 \end{document}

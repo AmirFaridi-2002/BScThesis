@@ -67,11 +67,11 @@
 \begin{document}
 
 \begin{center}
-{\Large Section 4: Incorrectness Logic}\\[0.5em]
+{\Large Classical Foundations}\\[0.5em]
 \end{center}
 \setcounter{section}{2}
 
-\section{Incorrectness Logic (IL)}\label{sec:IL}
+\section{Incorrectness Logic}\label{sec:IL}
 
 IL is a program logic tailored for \emph{bug-catching}.
 Where classical verification aims to establish that programs satisfy desired
@@ -192,7 +192,7 @@ We use relational composition: for $R,S \subseteq \States\times\States$,
 &\triangleq \den{C_1}_{\er} \cup \den{C_2}_{\er},
 \\[0.8em]
 \den{C_1;C_2}_{\ok}
-&\triangleq \den{C_1}_{\ok} \mathbin{;} \den{C_2}_{\ok},
+&\triangleq \den{C_1}_{\ok} \mathbin{;} \den{C_2}_{\ok} = \den{C_2}_{\ok} \circ \den{C_1}_{\ok},
 &
 \den{C_1;C_2}_{\er}
 &\triangleq \bigl(\den{C_1}_{\ok} \mathbin{;} \den{C_2}_{\er}\bigr)\ \cup\ \den{C_1}_{\er},
@@ -238,7 +238,7 @@ the post-image is:
 We abbreviate $\post_{\epsilon}(c)(p)\triangleq \post(\den{c}_{\epsilon})(p)$, 
 and may use them interchangably.
 
-\paragraph{IL triples (under-approximate).}
+\paragraph{IL triples.}
 An IL triple has the form
 $ [p]\,c\,[\epsilon:q], $
 and is \emph{semantically valid}
@@ -258,7 +258,6 @@ When both exits matter, we also write a \emph{quadruple}:
 [p]\,c\,[\ok:q]\ \wedge\ [p]\,c\,[\er:r].
 \]
 
-\paragraph{Reachability characterization.}
 Equation~\eqref{eq:IL-def} is equivalent to an explicit reachability property:
 \begin{equation}\label{eq:IL-reachability}
 \models [p]\,c\,[\epsilon:q]
@@ -267,7 +266,6 @@ Equation~\eqref{eq:IL-def} is equivalent to an explicit reachability property:
 \end{equation}
 This makes the existential nature of IL explicit: IL is about \emph{witnessing} reachable outcomes.
 
-\paragraph{No false positivity.}
 Because IL requires $q$ to be a subset of actually reachable final states, any state included in $q$
 comes with a semantic guarantee that it can happen in a real execution (from some $p$-state).
 This is the logical core of the ``no false positives'' philosophy for bug-catching:
@@ -616,7 +614,6 @@ In this subsection we prove that the proof rules of Incorrectness Logic are
 The proof follows the standard rule-by-rule style:
 each axiom is semantically valid, and each inference rule preserves semantic validity.
 
-\paragraph{Semantic validity of IL triples.}
 Recall that each command \(C\) is interpreted by two relations
 \(\den{ C}_{\mathsf{ok}}, \den{ C}_{\mathsf{er}} \subseteq \Sigma\times\Sigma\),
 where \(\Sigma\) is the set of classical program states.
@@ -635,10 +632,9 @@ r \subseteq \post(\den{ C}_{\mathsf{er}})(p).
 (Equivalently, for each exit condition \(\epsilon\in\{\mathsf{ok},\mathsf{er}\}\),
 \(\models [p]\,C\,[\epsilon:q]\) iff \(q\subseteq \post(\den{ C}_{\epsilon})(p)\).)
 
-\paragraph{A characterization lemma.}
 We will use the following equivalent, ``witness-style'' formulation of under-approximation.
 
-\begin{lemma}[Characterization of under-approximation]\label{lem:char-under}
+\begin{lemma}[]\label{lem:char-under}
 For any relation \(r\subseteq\Sigma\times\Sigma\) and predicates \(p,q\subseteq\Sigma\),
 \[
 q \subseteq \post(r)(p)
@@ -656,10 +652,9 @@ Then every \(\sigma'\in q\) belongs to \(\post(r)(p)\) by the definition of \(\p
 hence \(q\subseteq \post(r)(p)\).
 \end{proof}
 
-\paragraph{Algebraic facts about \(\post\).}
 The proofs below repeatedly use two elementary properties.
 
-\begin{lemma}[\(\post\) distributes over union and composes over relational composition]
+\begin{lemma}[]
 \label{lem:post-algebra}
 Let \(r_1,r_2\subseteq\Sigma\times\Sigma\) be relations and \(p\subseteq\Sigma\) a predicate.
 Then:
@@ -877,7 +872,6 @@ which is the desired soundness statement.
 It remains to prove soundness of the rules (Constancy, Local Variable, Substitution~I/II).
 We will use two standard semantic facts about commands that \emph{do not mention} certain variables.
 
-\paragraph{Two semantic invariance lemmas.}
 Recall that for a store $\sigma$ and value $v\in\Val$, $\sigma[x\mapsto v]$ is the store
 agreeing with $\sigma$ everywhere except at $x$.
 
@@ -1114,7 +1108,7 @@ It does not contradict undecidability: the oracle can hide non-computable reason
 just as the HL completeness theorem hides it in wlp-expressiveness and implication-proving.
 \end{remark}
 
-\begin{lemma}[Derivable exact post-image]\label{lem:IL-exactpost}
+\begin{lemma}[]\label{lem:IL-exactpost}
 For every IL command $C$, every exit
 $\epsilon\in\{\ok,\er\}$, and every finitely-supported predicate $p$,
 \[

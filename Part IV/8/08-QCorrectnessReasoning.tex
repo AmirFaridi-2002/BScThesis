@@ -1,0 +1,1290 @@
+\documentclass[11pt]{article}
+
+\usepackage[a4paper,margin=1in]{geometry}
+\usepackage{amsmath,amssymb,amsthm,mathtools,mathrsfs}
+\usepackage{braket,stmaryrd}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage{tikz-cd}
+
+\newcommand{\LL}{\mathcal{L}}
+\newcommand{\Tr}{\mathrm{tr}}
+\newcommand{\Id}{\mathbf{1}}
+\newcommand{\QO}{\mathrm{QO}}
+\newcommand{\sq}{\sqsubseteq}
+\newcommand{\den}[1]{\llbracket #1 \rrbracket}
+\newcommand{\Var}{\mathsf{Var}}
+\newcommand{\Val}{\mathsf{Val}}
+\newcommand{\AExp}{\mathsf{AExp}}
+\newcommand{\BExp}{\mathsf{BExp}}
+\newcommand{\Cmd}{\mathsf{Cmd}}
+\newcommand{\post}{\operatorname{post}}
+\newcommand{\wlp}{\operatorname{wlp}}
+\newcommand{\Guard}{\operatorname{Guard}}
+\newcommand{\lfp}{\operatorname{lfp}}
+\newcommand{\supp}{\operatorname{supp}}
+\newcommand{\ok}{\mathsf{ok}}
+\newcommand{\er}{\mathsf{er}}
+\newcommand{\true}{\mathsf{true}}
+\newcommand{\false}{\mathsf{false}}
+\newcommand{\error}{\mathsf{error}}
+\newcommand{\abort}{\mathsf{abort}}
+\newcommand{\assume}{\mathsf{assume}}
+\newcommand{\assert}{\mathsf{assert}}
+\newcommand{\ifthenelse}[3]{\mathsf{if}\ #1\ \mathsf{then}\ #2\ \mathsf{else}\ #3}
+\newcommand{\whiledo}[2]{\mathsf{while}\ #1\ \mathsf{do}\ #2}
+\newcommand{\nat}{\mathsf{nat}}
+\newcommand{\infer}[3][]{\frac{#2}{#3}\,#1}
+\newcommand{\Skip}{\mathsf{skip}}
+\newcommand{\States}{\Sigma}
+\newcommand{\Pow}{\mathscr{P}}
+
+\renewcommand{\braket}[2]{\langle #1 | #2 \rangle}
+
+\newcommand{\Reg}{\mathsf{Reg}}
+\newcommand{\Done}{\downarrow}
+\newcommand{\Conf}[2]{\langle #1,\, #2\rangle}
+\newcommand{\step}[1]{\xrightarrow{#1}}
+\newcommand{\ptr}{\operatorname{tr}}
+\newcommand{\cyl}{\operatorname{cyl}}
+\newcommand{\Dens}{\mathcal{D}}
+\newcommand{\Dsub}[1]{\mathcal{D}_{\le 1}(#1)}
+\newcommand{\comp}[1]{\overline{#1}}
+\newcommand{\Mset}{\mathsf{Mset}}
+\newcommand{\mset}[1]{\{\!\{#1\}\!\}}  
+\newcommand{\msum}{\operatorname{Sum}} 
+\newcommand{\Reach}{\operatorname{Reach}}
+\newcommand{\Out}{\operatorname{Out}}
+\newcommand{\Mix}{\operatorname{Mix}}
+
+\newcommand{\modelst}{\vDash_{\mathrm{t}}}
+\newcommand{\modelsp}{\vDash_{\mathrm{p}}}
+\newcommand{\modelsst}{\vDash^{s}_{\mathrm{t}}}
+\newcommand{\modelssp}{\vDash^{s}_{\mathrm{p}}}
+
+
+\theoremstyle{plain}
+\newtheorem{theorem}{Theorem}[section]
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{claim}[theorem]{Claim}
+
+\theoremstyle{definition}
+\newtheorem{definition}[theorem]{Definition}
+
+\theoremstyle{remark}
+\newtheorem{remark}[theorem]{Remark}
+
+\begin{document}
+
+\begin{center}
+{\Large Quantum Program Logics}\\[0.5em]
+\end{center}
+\setcounter{section}{7}
+
+
+\section{Quantum Correctness Reasoning}\label{sec:qhl-family}
+
+This chapter develops the \emph{correctness} side of quantum program logic, in the tradition of
+quantum Hoare logic (QHL) and its later variants. The core idea is the same as in classical Hoare
+logic: a derivation follows the program structure and produces a compositional proof that a program
+meets a specification. The quantum-specific aspects are (i) program states are (partial) density
+operators on a composite Hilbert space, (ii) assertions are operator-valued, and (iii) measurements
+introduce probabilistic branching that is internalized via subnormalized states and super-operators.
+Our semantic reference is the denotational semantics of Section 6, where
+each command denotes a super-operator on the fixed global space \(H\). 
+
+
+\paragraph{Local assertions on subsystems.}
+As in Sections~5--6, we fix a register set \(\Reg\) and a global
+space \(H\cong \bigotimes_{x\in\Reg}H_x\), and we write \(H_s\) for the subsystem space of \(s\subseteq\Reg\).
+A quantum assertion is typically \emph{local}: it is an operator \(A\in L(H_s)\) that talks only about
+the degrees of freedom in \(s\). To evaluate such an assertion on a \emph{global} state
+\(\rho\in \Dsub{H}\), we lift it by cylindrical extension:
+\[
+  A^{(s)} := A\otimes \Id_{H_{\comp{s}}}\in L(H),
+\]
+and we read its \emph{expected value} in state \(\rho\) as
+\[
+  \langle A\rangle_{\rho} \;:=\; \Tr\!\bigl(A^{(s)}\,\rho\bigr).
+\]
+This expectation-based reading is the core semantic bridge between operator-valued predicates and
+density operators: it is linear in \(\rho\) and compositional with respect to tensoring independent
+subsystems. 
+
+Quantum program logics in the literature differ mainly in what they allow as assertions; the main
+choices are:
+
+\begin{itemize}[leftmargin=*]
+\item[] \emph{Projections/subspaces.}
+A projection \(P=P^\dagger=P^2\) represents a closed subspace of \(H_s\). For normalized \(\rho\),
+\(\Tr(P^{(s)}\rho)\) is the probability that a projective measurement of \(P\) returns ``true''.
+Projection assertions connect cleanly to lattice-theoretic reasoning and support-based reasoning,
+but closure conditions can be cumbersome in mechanization.
+
+\item[] \emph{Effects / quantum predicates.}
+An \emph{effect} is an operator \(0\sq Q\sq \Id\) (Hermitian with spectrum in \([0,1]\)).
+Then \(\Tr(Q^{(s)}\rho)\in[0,\Tr(\rho)]\) is a quantitative degree of satisfaction (an expected truth
+value). This is the classical D'Hondt--Panangaden viewpoint used by many QHL systems.
+
+\item[] \emph{General linear operators.}
+CoqQ generalizes further and allows assertions to be arbitrary linear operators in \(L(H_s)\), while
+the semantic validity of triples is still phrased using the trace pairing \(\Tr(A^{(s)}\rho)\).
+This has a pragmatic advantage: \(L(H_s)\) is closed under linear combinations, so intermediate
+assertions do not require repeated side-condition proofs (e.g.\ that an expression remains an effect).
+For physical interpretation, however, one typically restricts attention to Hermitian operators, since
+\(\Tr(A^{(s)}\rho)\) is meaningful as an ``observable expectation'' only when \(A\) is Hermitian.
+\end{itemize}
+
+The appropriate entailment order between (Hermitian) assertions is the Löwner order:
+\(A\sq B\) iff \(B-A\sqsupseteq 0\). It is compatible with the expectation semantics:
+if \(A\sq B\) and \(\rho\sqsupseteq 0\), then \(\Tr(A^{(s)}\rho)\le \Tr(B^{(s)}\rho)\).
+This is the quantum analogue of semantic implication, and it underlies the rule of consequence in
+quantum Hoare-style systems.
+
+Assertions attached to small subsystems let proofs follow the programmer’s intent: most commands
+touch a limited footprint, and most specifications speak about a few registers (e.g.\ ``the output
+register \(x\) is in the Fourier basis''). CoqQ formalizes this principle via a \emph{localization}
+property: every program has a local denotation on the tensor factor generated by its mentioned
+subsystems, and extends by identity elsewhere. This result is a key ingredient behind local/parallel
+reasoning rules such as invariance and framing. 
+
+\subsection{CoqQ's program logic}\label{subsec:coqq-logic}
+
+CoqQ formalizes a Hoare-style program logic for qwhile, and proves it sound with respect to the
+denotational semantics \(\den{C}\) (Section~6). The logic is a mild adaptation
+of Ying’s QHL family, but with (i) assertions allowed to be general linear operators, (ii) explicit
+support for local/parallel reasoning, and (iii) a new rule (R.Inner) to connect forward and backward
+reasoning.
+
+\paragraph{Judgments and validity.}
+A Hoare judgment has the form
+\[
+  \{\,A\,\}\ C\ \{\,B\,\},
+\]
+where \(A\in L(H_{s_1})\) and \(B\in L(H_{s_2})\) are assertions on (possibly different) subsystems
+\(s_1,s_2\subseteq\Reg\), and \(C\) is a qwhile command.
+
+We will distinguish \emph{total correctness} and \emph{partial correctness} validity by the following
+trace-expectation inequalities. Let \(\rho\in\Dsub{H}\) be any input partial state and let
+\(\den{C}:L(H)\to L(H)\) be the denotation.
+
+\begin{remark}[]\label{rem:vdash-vdash}
+We use two different turnstiles to separate \emph{syntax} from \emph{semantics}.
+The judgment
+\[
+\vdash \{A\}\,C\,\{B\}
+\]
+means that the Hoare triple is \emph{derivable} in the proof system (there is a formal proof using
+the inference rules). In contrast,
+\[
+\models \{A\}\,C\,\{B\}
+\]
+means that the triple is \emph{semantically valid} with respect to the denotational semantics
+\(\den{C}\) (Definitions~\ref{def:coqq-validity} for total/partial correctness).
+
+Some presentations sometimes write the rules directly with \(\models\), because in a
+mechanized development each ``rule'' is proved as a lemma about the semantics (so it is already a
+sound semantic principle). Here we keep the traditional separation:
+rules are stated with \(\vdash\), and soundness is expressed by the meta-theorem
+\[
+\vdash_{p/t} \{A\}\,C\,\{B\}\ \Longrightarrow\ \models_{p/t} \{A\}\,C\,\{B\}.
+\]
+\end{remark}
+\begin{definition}[]\label{def:coqq-validity}
+
+\emph{Total correctness.} We write \(\models_t \{A\}\,C\,\{B\}\) if for all \(\rho\in\Dsub{H}\),
+\[
+  \Tr\!\bigl(A^{(s_1)}\,\rho\bigr)
+  \;\le\;
+  \Tr\!\bigl(B^{(s_2)}\,\den{C}(\rho)\bigr).
+\]
+\emph{Partial correctness.} We write \(\models_p \{A\}\,C\,\{B\}\) if for all \(\rho\in\Dsub{H}\),
+\[
+  \Tr\!\bigl(A^{(s_1)}\,\rho\bigr)
+  \;\le\;
+  \Tr\!\bigl(B^{(s_2)}\,\den{C}(\rho)\bigr)
+  \;+\;
+  \bigl(\Tr(\rho)-\Tr(\den{C}(\rho))\bigr).
+\]
+\end{definition}
+The extra term \(\Tr(\rho)-\Tr(\den{C}(\rho))\) is exactly the \emph{missing probability mass} after
+running \(C\) in the subnormalized-state semantics. Recall that inputs are allowed to be partial
+states \(\rho\in\Dsub{H}\), where \(\Tr(\rho)\le 1\) represents the total probability mass of being in
+the current configuration. A denotation \(\den{C}\) is trace-nonincreasing, so
+\[
+  \Tr(\den{C}(\rho)) \;\le\; \Tr(\rho).
+\]
+The difference
+\[
+  \Tr(\rho)-\Tr(\den{C}(\rho))
+\]
+therefore measures how much probability mass is \emph{lost} by executing \(C\).
+In the intended operational reading, this lost mass corresponds to executions that do not
+produce a normal returned post-state. In particular, there are two standard sources of such loss:
+
+\begin{itemize}[leftmargin=*]
+\item[] \emph{Nontermination (divergence).}
+For loops, some runs may iterate forever. In the limit-of-approximants semantics,
+the loop denotation collects only the mass of terminating
+runs. The remaining mass is precisely the probability of diverging, and it is reflected by the trace
+gap \(\Tr(\rho)-\Tr(\den{C}(\rho))\).
+
+\item[] \emph{Aborting/blocked behavior.}
+If a command is treated as \emph{non-returning} in the super-operator model, it also contributes no
+returned post-state and therefore drops trace mass. In our development, \(\abort\) is interpreted at
+the super-operator level as \(\den{\abort}(\rho)=0\), so an execution that reaches \(\abort\) loses all
+remaining mass from that point onward. More generally, any construct that is modelled as ``no
+normal outcome'' will be represented denotationally by mapping to \(0\), and its probability weight is
+counted into the trace gap.
+\end{itemize}
+
+This is why the partial-correctness validity condition adds the trace-gap term: partial correctness
+does not require that all probability mass reaches a normal final state. Instead, it allows the
+possibility that some mass is lost (due to divergence or aborting behavior), and only insists that
+\emph{whenever} the program does return normally, the postcondition is satisfied in the quantitative
+sense encoded by \(\Tr(B^{(s_2)}\den{C}(\rho))\). Concretely, the inequality
+\[
+  \Tr\!\bigl(A^{(s_1)}\rho\bigr)
+  \;\le\;
+  \Tr\!\bigl(B^{(s_2)}\den{C}(\rho)\bigr)
+  +
+  \bigl(\Tr(\rho)-\Tr(\den{C}(\rho))\bigr)
+\]
+can be read as: ``the amount of \(A\)-mass initially present is bounded by the amount of \(B\)-mass
+in the normal output, \emph{plus} the amount of mass that fails to produce a normal output.''
+When \(C\) is terminating with probability \(1\) on \(\rho\) (i.e.\ \(\Tr(\den{C}(\rho))=\Tr(\rho)\)),
+the trace-gap vanishes and partial correctness collapses to total correctness for that input.
+\paragraph{Saturated judgments.}
+CoqQ also uses a \emph{saturated} variant (superscript \(s\)) in which the inequality in the validity
+definition is strengthened to equality. For instance, \(\models^{s}_{t}\{A\}C\{B\}\) means
+\(\Tr(A^{(s_1)}\rho)=\Tr(B^{(s_2)}\den{C}(\rho))\) for all \(\rho\). Saturated total correctness is
+especially useful when preconditions are scalars (probabilities) and postconditions are effects that
+represent measurement events, as in typical textbook statements of algorithm success probabilities.
+
+\paragraph{Readable state-to-state judgments.}
+A practical feature of the paper is syntactic sugar for state-based assertions expressed in labelled Dirac
+notation. Informally, the judgment
+\[
+  \models_{pt}^{st}\ \{\,\ket{\psi}\!\bra{\psi}\,\}\ C\ \{\,\ket{\phi}\!\bra{\phi}\,\}
+\]
+can be read as ``\(C\) transforms the input state \(\ket{\psi}\) into the output state \(\ket{\phi}\)''
+(under appropriate normalization side conditions). 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+\paragraph{Concrete syntax}\label{subsec:concrete-syntax}
+
+The abstract qwhile syntax is convenient for meta-theory: commands act directly on
+named subsystems $s\subseteq\Reg$ via $\mathsf{init}\ \rho_s$, $\mathsf{apply}\ U_s$, and measurements
+$M_s$.  However, when formalizing textbook algorithms, it is more convenient to write programs in
+terms of \emph{typed quantum variables} (register names) and use a small set of high-level commands,
+notably initialization into computational basis states and computational-basis measurement as guards.
+
+\paragraph{Types and their Hilbert spaces.}
+The paper assigns each quantum variable a \emph{type} $T$ together with a Hilbert space $H_T$.
+The intended use is that $T$ can represent qubits, qudits, classical finite domains, and products.
+
+\noindent-If $T$ is a finite set, then $H_T$ is the Hilbert space with the elements of $T$ as the
+computational basis:
+\[
+H_T \;:=\; \mathrm{span}\{\ket{t}\;:\;t\in T\},
+\qquad
+\braket{t}{t'}=\delta_{t,t'}.
+\]
+\noindent-If $T=T_1\times T_2$ is a Cartesian product, then $H_T \cong H_{T_1}\otimes H_{T_2}$, with
+basis $\ket{t_1,t_2}\equiv \ket{t_1}\otimes\ket{t_2}$.
+
+This closure under products is essential: it lets one package several registers into a single
+``compound'' variable and then project back to components when needed. 
+
+
+\begin{definition}[]\label{def:qvar}
+A quantum variable $x$ of type $T$ consists of:
+\begin{itemize}[leftmargin=*]
+\item[] a symbolic name $x$;
+\item[] a \emph{location} (subsystem) $\operatorname{set}(x)\subseteq \Reg$;
+\item[] a fixed unitary identification (encoding) between the abstract type space and the concrete
+subsystem space,
+\[
+\iota_x:\ H_T \stackrel{\cong}{\longrightarrow} H_{\operatorname{set}(x)}.
+\]
+\end{itemize}
+We write the image of a vector $\ket{\psi}\in H_T$ and an operator $A\in L(H_T)$ at location $x$ as
+\[
+\ket{\psi}_x \;:=\; \iota_x\ket{\psi}\in H_{\operatorname{set}(x)},
+\qquad
+A[x] \;:=\; \iota_x\,A\,\iota_x^\dagger \in L(H_{\operatorname{set}(x)}).
+\]
+\end{definition}
+
+Thus $A[x]$ is simply ``the operator $A$ acting on the subsystem $\operatorname{set}(x)$, expressed in
+the concrete Hilbert space of that subsystem''. 
+
+\paragraph{Composing variables.}
+If $x_1:T_1$ and $x_2:T_2$ are quantum variables with disjoint locations
+$\operatorname{set}(x_1)\cap \operatorname{set}(x_2)=\emptyset$, then we treat the pair
+$ x \;\equiv\; [x_1,x_2] $
+as a quantum variable of type $T_1\times T_2$ with location
+$\operatorname{set}(x)=\operatorname{set}(x_1)\cup \operatorname{set}(x_2)$, and with injections
+compatible with tensor products:
+\[
+\ket{\psi_1,\psi_2}_{[x_1,x_2]} \;=\; \ket{\psi_1}_{x_1}\otimes \ket{\psi_2}_{x_2},
+\qquad
+(A_1\otimes A_2)[[x_1,x_2]] \;=\; A_1[x_1]\otimes A_2[x_2].
+\]
+This lets one define and manipulate ``structured'' registers while retaining locality at the level of
+subsystems.
+
+For a command $C$, we write $\operatorname{set}(C)$ for the union of all subsystems mentioned in $C$
+(i.e.\ the program's footprint). This notion is used pervasively in proof-rule side conditions such as
+invariance and framing.
+
+\paragraph{Concrete command syntax}
+
+Under the concrete syntax, the core constructs are written using typed variables and computational
+basis measurement as guards. A representative fragment is:
+\[
+\begin{array}{rcl}
+C &::=& \Skip
+\ \mid\ C_1;C_2
+\ \mid\ x := \ket{t}
+\ \mid\ x := U[x]
+\\
+&&\mid\ \mathsf{if}\ \mathsf{meas}[x]=t \rightarrow C_t\ \mathsf{fi}
+\ \mid\ \mathsf{while}\ \mathsf{meas}[x]=b\ \mathsf{do}\ C\ \mathsf{od}
+\\
+&&\mid\ \mathsf{for}\ i\ \mathsf{do}\ C_i \quad (\text{parallel/independent family, used in the logic})
+\end{array}
+\]
+where $t$ ranges over the (finite) type of $x$, $U$ is a unitary on $H_T$, and $\mathsf{meas}[x]$
+denotes \emph{computational basis} measurement on the variable $x$.
+
+\paragraph{Computational-basis measurement.}
+If $x:T$ with $T$ finite, then $\mathsf{meas}[x]$ is the projective measurement
+$\{\,\ket{t}\!\bra{t}\,\}_{t\in T}$ on $H_T$. At location $x$, its outcome operators on the concrete
+subsystem are
+\[
+M_t[x] \;:=\; \bigl(\ket{t}\!\bra{t}\bigr)[x] \;\in\; L\bigl(H_{\operatorname{set}(x)}\bigr),
+\qquad t\in T.
+\]
+When interpreting these on the \emph{global} space $H$, we further apply cylindrical extension:
+\[
+M_t^{(\operatorname{set}(x))} \;=\; M_t[x]\otimes \Id_{H_{\comp{\operatorname{set}(x)}}}.
+\]
+Thus, the concrete guard $\mathsf{meas}[x]=t$ is a special case of the abstract measurement
+$M_s=\{(t,M_t)\}$ used, where $s=\operatorname{set}(x)$ and $M_t=M_t[x]$.
+
+Each concrete construct is an instance of the abstract subsystem-based qwhile constructs from
+(and therefore inherits their operational and denotational semantics). Concretely:
+
+\begin{itemize}[leftmargin=*]
+\item[] \textit{Initialization.}
+The concrete command $x := \ket{t}$ prepares the basis state at $x$ and forgets any previous
+contents of $\operatorname{set}(x)$. In the abstract syntax, this is
+\[
+x := \ket{t}
+\quad\leadsto\quad
+\mathsf{init}\ \rho_{\operatorname{set}(x)}
+\qquad\text{with}\qquad
+\rho_{\operatorname{set}(x)} := \ket{t}_x\!\bra{t}.
+\]
+Its denotation is $\rho\mapsto \rho_{\operatorname{set}(x)}\otimes \Tr_{\operatorname{set}(x)}(\rho)$.
+
+\item[] \textit{Unitary application.}
+The concrete command $x := U[x]$ applies the unitary $U$ on the type space $H_T$, transported to
+the location $\operatorname{set}(x)$ as $U[x]=\iota_x U \iota_x^\dagger$:
+\[
+x := U[x]
+\quad\leadsto\quad
+\mathsf{apply}\ U_{\operatorname{set}(x)}
+\qquad\text{with}\qquad
+U_{\operatorname{set}(x)}:=U[x].
+\]
+Globally this acts by conjugation with $(U[x])^{(\operatorname{set}(x))}$.
+
+\item[] \textit{Conditionals.}
+The concrete conditional
+\[
+\mathsf{if}\ \mathsf{meas}[x]=t \rightarrow C_t\ \mathsf{fi}
+\]
+is the abstract conditional
+\[
+\mathsf{if}\ (\square t.\ M_{\operatorname{set}(x)}=t \rightarrow C_t)\ \mathsf{fi}
+\]
+with Kraus/projector operators $M_t[x]=(\ket{t}\!\bra{t})[x]$ (and their cylindrical extensions
+on $H$).
+
+\item[] \textit{While loops.}
+The concrete loop
+\[
+\mathsf{while}\ \mathsf{meas}[x]=b\ \mathsf{do}\ C\ \mathsf{od}
+\]
+is the abstract while-loop driven by the two-outcome measurement
+$M'_{\operatorname{set}(x)}=\{M_{\neg b}[x], M_b[x]\}$ on subsystem $\operatorname{set}(x)$, where
+$M_b[x]=(\ket{b}\!\bra{b})[x]$ and $M_{\neg b}[x]=(\ket{\neg b}\!\bra{\neg b})[x]$.
+
+\item[] \textit{For loops (independent families).}
+The construct $\mathsf{for}\ i\ \mathsf{do}\ C_i$ is used in the logic as a convenient way to express
+a family of commands acting on pairwise disjoint footprints. Under the disjointness condition
+\[
+\forall i\neq j,\ \operatorname{set}(C_i)\cap \operatorname{set}(C_j)=\emptyset,
+\]
+their denotations commute and can be composed in any order; correctness rules therefore allow one
+to reason about them componentwise with tensor-product assertions (cf.\ rule \textsc{R.PC.P}).
+\end{itemize}
+
+\paragraph{Proof rules.}
+
+\[
+\infer[(\textsc{Ax.Sk})]{}{\vdash_{p}\{A\}\ \Skip\ \{A\}}
+\qquad
+\infer[(\textsc{Ax.UTF})]{}{\vdash_{p}\{A\}\ x := U[x]\ \{\,U[x]\ A\ U[x]^{\dagger}\,\}}
+\]
+
+\[
+\infer[(\textsc{Ax.InF})]{s\cap \operatorname{set}(x)=\emptyset}
+{\vdash_{p}\{A_{s}\}\ x := |t\rangle\ \{\,A_{s}\otimes |t\rangle_{x}\langle t|\,\}}
+\]
+
+\[
+\infer[(\textsc{R.SC})]{\vdash_{p}\{A\}\ C_{1}\ \{B\}\quad \vdash_{p}\{B\}\ C_{2}\ \{C\}}
+{\vdash_{p}\{A\}\ C_{1};C_{2}\ \{C\}}
+\]
+
+\[
+\infer[(\textsc{R.IF})]{\forall t:T,\ \vdash_{p}\{A_{t}\}\ C_{t}\ \{B\}}
+{\vdash_{p}\Bigl\{\ \sum_{t:T} |t\rangle_{x}\langle t|\ A_{t}\ |t\rangle_{x}\langle t|\ \Bigr\}\ 
+\mathsf{if}\ \mathsf{meas}[x]=t\rightarrow C_{t}\ \mathsf{fi}\ \{B\}}
+\]
+
+\[
+\infer[(\textsc{R.LP.P})]
+{
+R := |b\rangle_{x}\langle b|\ A\ |b\rangle_{x}\langle b|
+     + |\neg b\rangle_{x}\langle \neg b|\ B\ |\neg b\rangle_{x}\langle \neg b|
+\quad
+\vdash_{p}\{A\}\ C\ \{R\}
+\quad
+A\sq \Id
+\quad
+B\sq \Id
+}{\vdash_{p}\{R\}\ \mathsf{while}\ \mathsf{meas}[x]=b\ \mathsf{do}\ C\ \mathsf{od}\ \{B\}}
+\]
+
+\[
+\infer[(\textsc{R.PC.P})]
+{
+\forall i\in I.\ \vdash_{p}\{A_{i,s_{A_i}}\}\ C_i\ \{B_{i,s_{B_i}}\}
+\ \wedge\ 
+(0\sq A_{i,s_{A_i}}\sq \Id)
+\ \wedge\ 
+(0\sq B_{i,s_{B_i}}\sq \Id)
+\ \wedge\
+\forall i\neq j.\ \mathcal{F}_i\cap \mathcal{F}_j=\emptyset
+}
+{
+\vdash_{p}\Bigl\{\ \bigotimes_{i\in I} A_{i,s_{A_i}}\ \Bigr\}\ 
+\mathsf{for}\ i\ \mathsf{do}\ C_i\
+\Bigl\{\ \bigotimes_{i\in I} B_{i,s_{B_i}}\ \Bigr\}
+}
+\]
+\[
+\text{where}\qquad
+\mathcal{F}_i:=\operatorname{set}(C_i)\cup s_{A_i}\cup s_{B_i}.
+\]
+
+\[
+\infer[(\textsc{Ax.UTFP})]
+{\forall i\neq j,\ \operatorname{set}(x_i)\cap \operatorname{set}(x_j)=\emptyset}
+{\vdash_{p}\{A\}\ \mathsf{for}\ i\ \mathsf{do}\ x_i := U_i[x_i]\ \Bigl\{\ 
+(\bigotimes_{i\in I} U_i[x_i])\ A\ (\bigotimes_{i\in I} U_i[x_i])^{\dagger}\ \Bigr\}}
+\]
+
+\[
+\infer[(\textsc{Ax.InFP})]
+{\forall i\neq j,\ \operatorname{set}(x_i)\cap \operatorname{set}(x_j)=\emptyset}
+{\vdash_{p}\{1\}\ \mathsf{for}\ i\ \mathsf{do}\ x_i := |t_i\rangle\ \Bigl\{\ \bigotimes_{i\in I} |t_i\rangle_{x_i}\langle t_i|\ \Bigr\}}
+\]
+
+\[
+\infer[(\textsc{R.Or})]{A\sq A'\quad \vdash_{p}\{A'\}\ C\ \{B'\}\quad B'\sq B}
+{\vdash_{p}\{A\}\ C\ \{B\}}
+\]
+
+\[
+\infer[(\textsc{R.CC.P})]
+{\forall i\in I,\ \vdash_{p}\{A_i\}\ C\ \{B_i\}\quad \forall i\in I,\ 0\le \lambda_i\quad \sum_{i\in I}\lambda_i\le 1}
+{\vdash_{p}\Bigl\{\ \sum_{i\in I}\lambda_i A_i\ \Bigr\}\ C\ \Bigl\{\ \sum_{i\in I}\lambda_i B_i\ \Bigr\}}
+\]
+
+\[
+\infer[(\textsc{Ax.Inv})]{A_{s}\sq \Id\quad s\cap \operatorname{set}(C)=\emptyset}
+{\vdash_{p}\{A_{s}\}\ C\ \{A_{s}\}}
+\]
+
+\[
+\infer[(\textsc{R.EI})]{\vdash_{p}\{A_{s_A}\otimes \Id_{s}\}\ C\ \{B\}}
+{\vdash_{p}\{A_{s_A}\}\ C\ \{B\}\quad s_A\cap s=\emptyset}
+\]
+
+\[
+\infer[(\textsc{Frame.P})]
+{\vdash_{p}\{A_{s_A}\}\ C\ \{B_{s_B}\}\quad 0\sq R_{s}\sq \Id\quad (\operatorname{set}(C)\cup s_A\cup s_B)\cap s=\emptyset}
+{\vdash_{p}\{A_{s_A}\otimes R_{s}\}\ C\ \{B_{s_B}\otimes R_{s}\}}
+\]
+
+\[
+\infer[(\textsc{R.Inner})]
+{\vdash^{s}_{t}\{1\}\ C\ \{|v\rangle_{s_2}\langle v|\}\quad \|\,|v\rangle_{s_2}\,\|\le 1\quad s_1\subseteq s_2}
+{\vdash^{s}_{t}\Bigl\{\ \bigl\|\Id_{s_1}(\langle u|_{s_1}\,|v\rangle_{s_2})\bigr\|^{2}\ \Bigr\}\ C\ \Bigl\{\ |u\rangle_{s_1}\langle u|\ \Bigr\}}
+\]
+
+\[
+\infer[(\textsc{Ax.UTF'})]
+{}
+{\vdash_{p}\{\,|\psi\rangle\langle\psi|\,\}\ x := U[x]\ \{\,|U[x]\psi\rangle\langle U[x]\psi|\,\}}
+\]
+
+\[
+\infer[(\textsc{Ax.InF'})]
+{s\cap \operatorname{set}(x)=\emptyset}
+{\vdash_{p}\{\,|\psi\rangle\langle\psi|\,\}\ x := |t\rangle\ \{\, (|\psi\rangle\otimes|t\rangle_{x})(\langle\psi|\otimes\langle t|_{x})\,\}}
+\]
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+\subsection{Backward and forward reasoning}\label{subsec:backward-forward}
+
+In classical Hoare logic, backward reasoning is guided by weakest preconditions.
+The quantum analogue is a \emph{predicate-transformer} view induced by the denotational semantics.
+Given a post-assertion \(B\) (typically an effect), one can define a weakest (liberal) precondition
+\(\wlp(C,B)\) such that
+\[
+  \models_t \{A\}\,C\,\{B\}
+  \quad\Longleftrightarrow\quad
+  A\ \sq\ \wlp(C,B)
+\]
+(and similarly for partial correctness with an appropriate liberal variant).
+At the semantic level, this transformer is naturally expressed via the Heisenberg dual
+\(\den{C}^{\,*}\) characterized by
+\[
+  \Tr\!\bigl(B^{(s_2)}\,\den{C}(\rho)\bigr)
+  \;=\;
+  \Tr\!\bigl(\bigl(\den{C}^{\,*}(B^{(s_2)})\bigr)\,\rho\bigr)
+  \qquad(\rho\sqsupseteq 0),
+\]
+so that reasoning ``pushes back'' postconditions through the program.
+
+\paragraph{Forward reasoning and state transformation.}
+Forward reasoning propagates information in the execution order: start from a known input
+configuration (often after a block of initializations), compute the resulting state/expectation after
+each command, and finally read off the desired postcondition.
+
+\paragraph{Linking forward and backward: (R.Inner).}
+Forward reasoning often produces a strong \emph{post-state description} (a concrete \(\ket{\psi}\) or a
+structured superposition), whereas the final correctness goal is phrased as an \emph{expectation} of
+a postcondition effect (e.g.\ \(\ket{x}\!\bra{x}\) meaning ``measure \(x\)'').
+The new rule (R.Inner) in CoqQ is designed to bridge this gap:
+it turns a forward-derived saturated judgment about reaching a specific state into a quantitative
+precondition for a given postcondition, via inner-product/overlap calculations.
+
+\subsection{Soundness w.r.t.\ denotational semantics}\label{subsec:qhl-soundness}
+
+\begin{theorem}[Soundness]\label{thm:coqq-soundness}
+Every derivable Hoare judgment in the system is valid with respect to the denotational semantics
+\(\den{\cdot}\) of Section~6 and the validity definitions in
+Definition~\ref{def:coqq-validity}. Concretely, for each choice of proof mode
+(total vs.\ partial correctness, and saturated vs.\ non-saturated),
+\[
+\vdash \{A\}\,C\,\{B\}
+\quad\Longrightarrow\quad
+\models \{A\}\,C\,\{B\}.
+\]
+\end{theorem}
+\begin{proof}
+We only prove the soundness for several main rules. 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+\noindent\textit{\textbf{Ax.Sk.}}
+Fix any input partial state \(\rho\in\Dsub{H}\).
+By the denotational semantics of \(\Skip\),
+$ \den{\Skip}(\rho)=\rho. $
+Therefore
+$ \Tr\!\bigl(A\,\rho\bigr)
+=
+\Tr\!\bigl(A\,\den{\Skip}(\rho)\bigr). $
+Moreover \(\Tr(\rho)-\Tr(\den{\Skip}(\rho))=\Tr(\rho)-\Tr(\rho)=0\).
+Hence
+\[
+\Tr(A\rho)\ \le\ \Tr\!\bigl(A\,\den{\Skip}(\rho)\bigr)+\bigl(\Tr(\rho)-\Tr(\den{\Skip}(\rho))\bigr),
+\]
+which is exactly \(\models_p \{A\}\ \Skip\ \{A\}\) by Definition~\ref{def:coqq-validity}.  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+\noindent\textit{\textbf{Ax.UTF}} 
+Fix \(\rho\in\Dsub{H}\).
+Let \(U\) abbreviate the (globally lifted) unitary acting on \(\operatorname{set}(x)\), i.e.
+\(U:=U[x]^{(\operatorname{set}(x))}\).
+By denotational semantics of unitary application,
+\[
+\den{x:=U[x]}(\rho) \;=\; U\,\rho\,U^\dagger. \tag*{\(\) }
+\]
+Now evaluate the postcondition on the output:
+\begin{align*}
+\Tr\!\Bigl(\bigl(U[x]\,A\,U[x]^\dagger\bigr)\,\den{x:=U[x]}(\rho)\Bigr)
+&=\Tr\!\Bigl((U A U^\dagger)\,(U\rho U^\dagger)\Bigr)\\
+&=\Tr\!\Bigl(U A (U^\dagger U)\rho U^\dagger\Bigr)\\
+&=\Tr\!\Bigl(U A \rho U^\dagger\Bigr)\\
+&=\Tr\!\bigl(A\rho\bigr),
+\end{align*}
+where we used associativity and \(U^\dagger U=\Id\), then cyclicity of trace
+\(\Tr(U A \rho U^\dagger)=\Tr(A\rho U^\dagger U)=\Tr(A\rho)\). 
+Also \( \Tr(\den{x:=U[x]}(\rho))=\Tr(U\rho U^\dagger)=\Tr(\rho)\), so the trace-gap term is \(0\).
+Therefore the partial-correctness inequality holds with equality:
+\begin{align*}
+\Tr(A\rho)
+&=
+\Tr\!\Bigl(\bigl(U[x]AU[x]^\dagger\bigr)\,\den{x:=U[x]}(\rho)\Bigr)\\
+&\le
+\Tr\!\Bigl(\bigl(U[x]AU[x]^\dagger\bigr)\,\den{x:=U[x]}(\rho)\Bigr)
++\bigl(\Tr(\rho)-\Tr(\den{x:=U[x]}(\rho))\bigr).
+\end{align*}
+Hence \(\models_p \{A\}\ x := U[x]\ \{U[x]AU[x]^\dagger\}\). 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+\noindent\textit{\textbf{Ax.InF}}
+Fix \(\rho\in\Dsub{H}\).
+Let \(x^\star:=\operatorname{set}(x)\) and write the global space as
+\(H\cong H_{x^\star}\otimes H_{\comp{x^\star}}\).
+The denotation of initialization \(x:=|t\rangle\) is the reset map:
+\[
+\den{x:=|t\rangle}(\rho)=|t\rangle_x\langle t|\ \otimes\ \Tr_{x^\star}(\rho). \tag*{\(\) }  % init semantics
+\]
+This map is trace-preserving: \(\Tr(\den{x:=|t\rangle}(\rho))=\Tr(\rho)\), hence the trace-gap is \(0\).
+So it suffices to show the stronger inequality
+\(\Tr(A_s\rho)\le \Tr\bigl((A_s\otimes |t\rangle_x\langle t|)\den{x:=|t\rangle}(\rho)\bigr)\),
+indeed we will show equality.
+
+Because \(s\cap x^\star=\emptyset\), the assertion \(A_s\) acts only on the complement factor
+\(H_{\comp{x^\star}}\) (possibly together with other registers disjoint from \(x^\star\)).
+Using the defining property of partial trace (``testers commute with trace-out'') we have:
+\[
+\Tr\!\bigl(A_s\,\rho\bigr)
+=
+\Tr\!\bigl(A_s\,\Tr_{x^\star}(\rho)\bigr). \tag{1}
+\]
+(Precisely: \(\Tr((A_s\otimes \Id_{H_{x^\star}})\rho)=\Tr(A_s\,\Tr_{x^\star}(\rho))\).)
+
+Now evaluate the postcondition on the output:
+\begin{align*}
+\Tr\!\Bigl((A_s\otimes |t\rangle_x\langle t|)\ \den{x:=|t\rangle}(\rho)\Bigr)
+&=
+\Tr\!\Bigl((A_s\otimes |t\rangle_x\langle t|)\ (|t\rangle_x\langle t|\otimes \Tr_{x^\star}(\rho))\Bigr)\\
+&=
+\Tr\!\Bigl((A_s\otimes |t\rangle_x\langle t|)\ (|t\rangle_x\langle t|\otimes \Tr_{x^\star}(\rho))\Bigr)\\
+&=
+\Tr\!\Bigl(A_s\,\Tr_{x^\star}(\rho)\Bigr)\cdot \Tr\!\bigl(|t\rangle\langle t|\cdot |t\rangle\langle t|\bigr)\\
+&=
+\Tr\!\Bigl(A_s\,\Tr_{x^\star}(\rho)\Bigr)\cdot \Tr\!\bigl(|t\rangle\langle t|\bigr)\\
+&=
+\Tr\!\Bigl(A_s\,\Tr_{x^\star}(\rho)\Bigr).
+\end{align*}
+Here we used that tensor traces factorize and \(|t\rangle\langle t|\) is a rank-one projection:
+\((|t\rangle\langle t|)^2=|t\rangle\langle t|\) and \(\Tr(|t\rangle\langle t|)=1\). 
+
+Combining with (1) gives
+\[
+\Tr(A_s\rho)=\Tr\!\Bigl((A_s\otimes |t\rangle_x\langle t|)\ \den{x:=|t\rangle}(\rho)\Bigr),
+\]
+and since the trace gap is \(0\), the partial-correctness inequality holds. Hence the rule is sound. 
+
+
+
+
+
+
+
+
+
+
+
+\noindent\textit{\textbf{R.SC}}
+We will prove if \(\models_p\{A\}\ C_1\ \{B\}\) and \(\models_p\{B\}\ C_2\ \{C\}\), then
+\(\models_p\{A\}\ C_1;C_2\ \{C\}\).
+
+Fix \(\rho\in\Dsub{H}\) and write \(\rho_1:=\den{C_1}(\rho)\).
+By \(\models_p\{A\}C_1\{B\}\),
+\[
+\Tr(A\rho)\ \le\ \Tr(B\rho_1)+\bigl(\Tr(\rho)-\Tr(\rho_1)\bigr). \tag{1}
+\]
+By \(\models_p\{B\}C_2\{C\}\) applied to \(\rho_1\),
+\[
+\Tr(B\rho_1)\ \le\ \Tr\!\bigl(C\,\den{C_2}(\rho_1)\bigr)+\bigl(\Tr(\rho_1)-\Tr(\den{C_2}(\rho_1))\bigr). \tag{2}
+\]
+Substitute (2) into (1):
+\begin{align*}
+\Tr(A\rho)
+&\le
+\Tr\!\bigl(C\,\den{C_2}(\rho_1)\bigr)
++\bigl(\Tr(\rho_1)-\Tr(\den{C_2}(\rho_1))\bigr)
++\bigl(\Tr(\rho)-\Tr(\rho_1)\bigr)\\
+&=
+\Tr\!\bigl(C\,\den{C_2}(\rho_1)\bigr)
++\bigl(\Tr(\rho)-\Tr(\den{C_2}(\rho_1))\bigr).
+\end{align*}
+Finally, by denotational semantics of sequencing,
+\[
+\den{C_1;C_2}=\den{C_2}\circ \den{C_1}
+\quad\Rightarrow\quad
+\den{C_1;C_2}(\rho)=\den{C_2}(\rho_1).
+\]
+So the inequality becomes exactly
+\[
+\Tr(A\rho)\ \le\ \Tr\!\bigl(C\,\den{C_1;C_2}(\rho)\bigr)+\bigl(\Tr(\rho)-\Tr(\den{C_1;C_2}(\rho))\bigr),
+\]
+i.e. \(\models_p\{A\}\ C_1;C_2\ \{C\}\). 
+
+
+
+
+
+
+
+
+
+
+
+
+\noindent\textit{\textbf{R.IF}}
+Assume that for every \(t\in T\), \(\models_p\{A_t\}\ C_t\ \{B\}\).
+Let \(P_t:=|t\rangle_x\langle t|\) be the computational-basis projector on \(x\) (lifted to \(H\)).
+
+Fix \(\rho\in\Dsub{H}\).
+For each \(t\in T\), define the (subnormalized) post-measurement state
+\[
+\rho_t := P_t\,\rho\,P_t \sqsupseteq 0.
+\]
+(So \(\Tr(\rho_t)\) is the probability mass of outcome \(t\).)
+
+\smallskip\noindent
+Using linearity and cyclicity of trace,
+\begin{align*}
+\Tr\!\Bigl(\Bigl(\sum_{t\in T} P_t A_t P_t\Bigr)\rho\Bigr)
+&=\sum_{t\in T}\Tr(P_t A_t P_t \rho)\\
+&=\sum_{t\in T}\Tr(A_t P_t \rho P_t)\\
+&=\sum_{t\in T}\Tr(A_t \rho_t). \tag{1}
+\end{align*}
+
+\smallskip\noindent
+For each \(t\), apply \(\models_p\{A_t\}C_t\{B\}\) to the input state \(\rho_t\):
+\[
+\Tr(A_t\rho_t)
+\ \le\
+\Tr\!\bigl(B\,\den{C_t}(\rho_t)\bigr)
++\bigl(\Tr(\rho_t)-\Tr(\den{C_t}(\rho_t))\bigr). \tag{2}
+\]
+Summing (2) over \(t\in T\) and using (1),
+\begin{align*}
+\Tr\!\Bigl(\Bigl(\sum_{t} P_t A_t P_t\Bigr)\rho\Bigr)
+&\le
+\sum_t \Tr\!\bigl(B\,\den{C_t}(\rho_t)\bigr)
++
+\sum_t \Tr(\rho_t)
+-
+\sum_t \Tr(\den{C_t}(\rho_t)). \tag{3}
+\end{align*}
+
+\smallskip\noindent
+By the denotational semantics of conditionals (measurement-controlled branching),
+\[
+\den{\mathsf{if}\ \mathsf{meas}[x]=t\rightarrow C_t\ \mathsf{fi}}(\rho)
+=
+\sum_{t\in T} \den{C_t}(\rho_t). \tag{4}
+\]
+Therefore, by linearity of trace,
+\[
+\sum_t \Tr\!\bigl(B\,\den{C_t}(\rho_t)\bigr)
+=
+\Tr\!\Bigl(B\,\sum_t \den{C_t}(\rho_t)\Bigr)
+=
+\Tr\!\Bigl(B\,\den{\mathsf{if}\cdots\mathsf{fi}}(\rho)\Bigr). \tag{5}
+\]
+Also,
+\[
+\sum_t \Tr(\den{C_t}(\rho_t))
+=
+\Tr\!\Bigl(\sum_t \den{C_t}(\rho_t)\Bigr)
+=
+\Tr\!\Bigl(\den{\mathsf{if}\cdots\mathsf{fi}}(\rho)\Bigr). \tag{6}
+\]
+Finally, because \(\{P_t\}_{t\in T}\) is a projective measurement with \(\sum_t P_t=\Id\),
+\[
+\sum_t \Tr(\rho_t)
+=
+\sum_t \Tr(P_t \rho P_t)
+=
+\Tr\!\Bigl(\Bigl(\sum_t P_t\Bigr)\rho\Bigr)
+=
+\Tr(\rho). \tag{7}
+\]
+Substituting (5)–(7) into (3) yields
+\[
+\Tr\!\Bigl(\Bigl(\sum_{t} P_t A_t P_t\Bigr)\rho\Bigr)
+\ \le\
+\Tr\!\Bigl(B\,\den{\mathsf{if}\cdots\mathsf{fi}}(\rho)\Bigr)
++\bigl(\Tr(\rho)-\Tr(\den{\mathsf{if}\cdots\mathsf{fi}}(\rho))\bigr),
+\]
+which is exactly \(\models_p\) for the conditional. 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+\noindent\textit{\textbf{R.OR}}
+Fix \(\rho\in\Dsub{H}\).
+Since \(A\sq A'\) and \(\rho\sqsupseteq 0\), Lemma~4.10 gives
+\[
+\Tr(A\rho)\ \le\ \Tr(A'\rho). \tag{1}
+\]
+By \(\models_p\{A'\}C\{B'\}\),
+\[
+\Tr(A'\rho)
+\ \le\
+\Tr\!\bigl(B'\,\den{C}(\rho)\bigr)
++\bigl(\Tr(\rho)-\Tr(\den{C}(\rho))\bigr).
+\tag{2}
+\]
+Finally, since \(B'\sq B\) and \(\den{C}(\rho)\sqsupseteq 0\),
+again by Lemma~4.10,
+\[
+\Tr\!\bigl(B'\,\den{C}(\rho)\bigr)\ \le\ \Tr\!\bigl(B\,\den{C}(\rho)\bigr). \tag{3}
+\]
+Combining (1)–(3) yields
+\[
+\Tr(A\rho)\ \le\ \Tr\!\bigl(B\,\den{C}(\rho)\bigr)+\bigl(\Tr(\rho)-\Tr(\den{C}(\rho))\bigr),
+\]
+which is exactly \(\models_p\{A\}C\{B\}\). 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+\noindent\textit{\textbf{R.LP.P}}
+Let \(W\equiv \mathsf{while}\ \mathsf{meas}[x]=b\ \mathsf{do}\ C\ \mathsf{od}\).
+Write \(P_b:=|b\rangle_x\langle b|\) and \(P_{\neg b}:=|\neg b\rangle_x\langle \neg b|\) (lifted to \(H\)).
+Assume \(A\sq \Id\), \(B\sq \Id\), and define
+\[
+R \;:=\; P_b A P_b\ +\ P_{\neg b} B P_{\neg b}.
+\]
+Fix an arbitrary \(\rho\in\Dsub{H}\).
+Let
+\[
+\rho_b := P_b\rho P_b,
+\qquad
+\rho_{\neg b} := P_{\neg b}\rho P_{\neg b}.
+\]
+Then \(\rho_b,\rho_{\neg b}\sqsupseteq 0\) and \(\Tr(\rho)=\Tr(\rho_b)+\Tr(\rho_{\neg b})\) because
+\(P_b+P_{\neg b}=\Id\). 
+
+We will use the denotational while semantics via syntactic approximants \(W^{(n)}\) (Section~6):
+\[
+W^{(0)} := \mathsf{abort},
+\qquad
+W^{(n+1)} :=
+\mathsf{if}\ \bigl(\mathsf{meas}[x]=\neg b \rightarrow \Skip\ \square\ b \rightarrow C;W^{(n)}\bigr)\ \mathsf{fi},
+\]
+and
+\[
+\den{W}(\rho)=\bigsqcup_{n\ge 0}\den{W^{(n)}}(\rho)=\lim_{n\to\infty}\den{W^{(n)}}(\rho).
+\]
+(Here \(\den{\mathsf{abort}}(\rho)=0\).) 
+
+\smallskip\noindent
+\textbf{Step 1:}
+Since \(A\sq \Id\) and \(B\sq \Id\),
+\[
+P_b A P_b \ \sq\ P_b \Id P_b = P_b,
+\qquad
+P_{\neg b} B P_{\neg b}\ \sq\ P_{\neg b}.
+\]
+Adding gives
+\[
+R = P_b A P_b + P_{\neg b} B P_{\neg b}\ \sq\ P_b+P_{\neg b}=\Id.
+\tag{1}
+\]
+Therefore for every \(\sigma\sqsupseteq 0\), Lemma~4.10 yields
+\[
+\Tr(R\sigma)\ \le\ \Tr(\sigma). \tag{2}
+\]
+
+\smallskip\noindent
+\textbf{Step 2:}
+Let \(E_n:=\den{W^{(n)}}\).
+We claim that for every \(n\ge 0\) and every \(\rho\sqsupseteq 0\),
+\[
+\Tr(R\rho)\ \le\ \Tr\!\bigl(B\,E_n(\rho)\bigr)\ +\ \bigl(\Tr(\rho)-\Tr(E_n(\rho))\bigr).
+\tag{$\star_n$}
+\]
+We prove \((\star_n)\) by induction on \(n\).
+
+\medskip\noindent
+\underline{Base \(n=0\).}
+\(E_0(\rho)=\den{\mathsf{abort}}(\rho)=0\). Hence the RHS of \((\star_0)\) is
+\(\Tr(B\cdot 0)+(\Tr(\rho)-\Tr(0))=\Tr(\rho)\).
+So \((\star_0)\) reduces to \(\Tr(R\rho)\le \Tr(\rho)\), which holds by (2).
+
+\medskip\noindent
+\underline{Step \(n\to n+1\).}
+Assume \((\star_n)\) holds for all inputs.
+We must prove \((\star_{n+1})\).
+
+First, unfold \(E_{n+1}(\rho)\) using the denotation of \textsf{if} and sequencing:
+the guard measurement has two outcomes \(\neg b\) (terminate) and \(b\) (continue), so
+\[
+E_{n+1}(\rho)
+=
+\rho_{\neg b} \;+\; E_n\!\bigl(\den{C}(\rho_b)\bigr),
+\tag{3}
+\]
+and therefore
+\[
+\Tr(E_{n+1}(\rho))
+=
+\Tr(\rho_{\neg b})\;+\;\Tr\!\Bigl(E_n\bigl(\den{C}(\rho_b)\bigr)\Bigr).
+\tag{4}
+\]
+Also, expand the precondition trace using the definition of \(R\):
+\begin{align*}
+\Tr(R\rho)
+&=\Tr(P_b A P_b\rho)+\Tr(P_{\neg b} B P_{\neg b}\rho)\\
+&=\Tr(A\rho_b)+\Tr(B\rho_{\neg b}), \tag{5}
+\end{align*}
+where we used cyclicity and \(P_b^2=P_b\), \(P_{\neg b}^2=P_{\neg b}\).
+
+Now we establish \((\star_{n+1})\) by bounding the \(A\rho_b\) term and letting the \(B\rho_{\neg b}\)
+term cancel on both sides.
+
+\smallskip\noindent
+\emph{(i) Use the premise \(\models_p\{A\}C\{R\}\) on input \(\rho_b\).}
+Since \(\rho_b\sqsupseteq 0\), the premise gives:
+\[
+\Tr(A\rho_b)
+\ \le\
+\Tr\!\bigl(R\,\den{C}(\rho_b)\bigr)\ +\ \bigl(\Tr(\rho_b)-\Tr(\den{C}(\rho_b))\bigr).
+\tag{6}
+\]
+
+\smallskip\noindent
+\emph{(ii) Use the induction hypothesis \((\star_n)\) on input \(\den{C}(\rho_b)\).}
+Apply \((\star_n)\) with \(\sigma:=\den{C}(\rho_b)\sqsupseteq 0\):
+\[
+\Tr\!\bigl(R\,\den{C}(\rho_b)\bigr)
+\ \le\
+\Tr\!\Bigl(B\,E_n(\den{C}(\rho_b))\Bigr)
++\Bigl(\Tr(\den{C}(\rho_b))-\Tr(E_n(\den{C}(\rho_b)))\Bigr).
+\tag{7}
+\]
+
+\smallskip\noindent
+\emph{(iii) Combine (6) and (7).}
+Substitute (7) into (6); the \(\Tr(\den{C}(\rho_b))\) terms cancel:
+\[
+\Tr(A\rho_b)
+\ \le\
+\Tr\!\Bigl(B\,E_n(\den{C}(\rho_b))\Bigr)
++\Bigl(\Tr(\rho_b)-\Tr(E_n(\den{C}(\rho_b)))\Bigr).
+\tag{8}
+\]
+
+\smallskip\noindent
+\emph{(iv) Add \(\Tr(B\rho_{\neg b})\) to both sides and rewrite using (3)–(5).}
+Using (5) on the left and linearity of trace on the right,
+\[
+\Tr(R\rho)
+=
+\Tr(A\rho_b)+\Tr(B\rho_{\neg b})
+\ \le\
+\Tr(B\rho_{\neg b})+\Tr\!\Bigl(B\,E_n(\den{C}(\rho_b))\Bigr)
++\Tr(\rho_b)-\Tr(E_n(\den{C}(\rho_b))).
+\]
+By (3),
+\[
+\Tr(B\rho_{\neg b})+\Tr\!\Bigl(B\,E_n(\den{C}(\rho_b))\Bigr)
+=
+\Tr\!\Bigl(B\,E_{n+1}(\rho)\Bigr).
+\tag{9}
+\]
+And by (4),
+\[
+\Tr(\rho_b)-\Tr(E_n(\den{C}(\rho_b)))
+=
+\Tr(\rho)-\Tr(E_{n+1}(\rho)).
+\tag{10}
+\]
+Substituting (9)–(10) proves \((\star_{n+1})\).
+Thus \((\star_n)\) holds for all \(n\ge 0\).
+
+\smallskip\noindent
+\textbf{Step 3:}
+By definition, \(\den{W}(\rho)=\lim_{n\to\infty}E_n(\rho)\) (in finite dimension).
+Taking \(n\to\infty\) in \((\star_n)\) and using continuity of trace (and linearity of \(\Tr(B\,\cdot)\)),
+we obtain:
+\[
+\Tr(R\rho)\ \le\ \Tr\!\bigl(B\,\den{W}(\rho)\bigr)\ +\ \bigl(\Tr(\rho)-\Tr(\den{W}(\rho))\bigr).
+\]
+This is exactly \(\models_p\{R\}\ W\ \{B\}\) by Definition~\ref{def:coqq-validity}. 
+
+
+
+
+
+
+
+
+
+
+
+    
+\end{proof}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+\end{document}

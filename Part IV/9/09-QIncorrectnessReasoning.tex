@@ -1,0 +1,1425 @@
+\documentclass[11pt]{article}
+
+\usepackage[a4paper,margin=1in]{geometry}
+\usepackage{amsmath,amssymb,amsthm,mathtools,mathrsfs}
+\usepackage{braket,stmaryrd}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage{tikz-cd}
+
+\newcommand{\LL}{\mathcal{L}}
+\newcommand{\Tr}{\mathrm{tr}}
+\newcommand{\Id}{\mathbf{1}}
+\newcommand{\QO}{\mathrm{QO}}
+\newcommand{\sq}{\sqsubseteq}
+\newcommand{\den}[1]{\llbracket #1 \rrbracket}
+\newcommand{\Var}{\mathsf{Var}}
+\newcommand{\Val}{\mathsf{Val}}
+\newcommand{\AExp}{\mathsf{AExp}}
+\newcommand{\BExp}{\mathsf{BExp}}
+\newcommand{\Cmd}{\mathsf{Cmd}}
+\newcommand{\post}{\operatorname{post}}
+\newcommand{\wlp}{\operatorname{wlp}}
+\newcommand{\Guard}{\operatorname{Guard}}
+\newcommand{\lfp}{\operatorname{lfp}}
+\newcommand{\supp}{\operatorname{supp}}
+\newcommand{\ok}{\mathsf{ok}}
+\newcommand{\er}{\mathsf{er}}
+\newcommand{\true}{\mathsf{true}}
+\newcommand{\false}{\mathsf{false}}
+\newcommand{\error}{\mathsf{error}}
+\newcommand{\abort}{\mathsf{abort}}
+\newcommand{\assume}{\mathsf{assume}}
+\newcommand{\assert}{\mathsf{assert}}
+\newcommand{\ifthenelse}[3]{\mathsf{if}\ #1\ \mathsf{then}\ #2\ \mathsf{else}\ #3}
+\newcommand{\whiledo}[2]{\mathsf{while}\ #1\ \mathsf{do}\ #2}
+\newcommand{\nat}{\mathsf{nat}}
+\newcommand{\infer}[3][]{\frac{#2}{#3}\,#1}
+\newcommand{\Skip}{\mathsf{skip}}
+\newcommand{\States}{\Sigma}
+\newcommand{\Pow}{\mathscr{P}}
+
+\renewcommand{\braket}[2]{\langle #1 | #2 \rangle}
+
+\newcommand{\Reg}{\mathsf{Reg}}
+\newcommand{\Done}{\downarrow}
+\newcommand{\Conf}[2]{\langle #1,\, #2\rangle}
+\newcommand{\step}[1]{\xrightarrow{#1}}
+\newcommand{\ptr}{\operatorname{tr}}
+\newcommand{\cyl}{\operatorname{cyl}}
+\newcommand{\Dens}{\mathcal{D}}
+\newcommand{\Dsub}[1]{\mathcal{D}_{\le 1}(#1)}
+\newcommand{\comp}[1]{\overline{#1}}
+\newcommand{\Mset}{\mathsf{Mset}}
+\newcommand{\mset}[1]{\{\!\{#1\}\!\}}  
+\newcommand{\msum}{\operatorname{Sum}} 
+\newcommand{\Reach}{\operatorname{Reach}}
+\newcommand{\Out}{\operatorname{Out}}
+\newcommand{\Mix}{\operatorname{Mix}}
+
+\newcommand{\modelst}{\vDash_{\mathrm{t}}}
+\newcommand{\modelsp}{\vDash_{\mathrm{p}}}
+\newcommand{\modelsst}{\vDash^{s}_{\mathrm{t}}}
+\newcommand{\modelssp}{\vDash^{s}_{\mathrm{p}}}
+
+\newcommand{\Ran}{\operatorname{Ran}}
+\newcommand{\ua}{\preceq}
+
+
+\theoremstyle{plain}
+\newtheorem{theorem}{Theorem}[section]
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{claim}[theorem]{Claim}
+
+\theoremstyle{definition}
+\newtheorem{definition}[theorem]{Definition}
+
+\theoremstyle{remark}
+\newtheorem{remark}[theorem]{Remark}
+
+\begin{document}
+
+\begin{center}
+{\Large Quantum Program Logics}\\[0.5em]
+\end{center}
+\setcounter{section}{8}
+
+
+\section{Quantum Incorrectness Reasoning}\label{sec:qil}
+
+
+
+
+
+
+
+
+
+
+
+In this section we present Quantum Incorrectness Logic (QIL), an under-approximate program logic for
+static bug-catching in quantum programs.
+The key technical move is to replace (boolean) satisfaction of a quantum assertion by an
+under-approximation relation, and to interpret ``achieving a postcondition'' in terms of the mixture
+of reachable terminal states, rather than individual execution paths.
+
+Throughout, assertions are \emph{projective} quantum predicates (orthogonal projections on the fixed
+global Hilbert space $H$), as developed in Section~4.10 of the prerequisites chapter.
+We continue to use the qwhile language and the collecting/relational
+semantics from Section~7 (multiset denotation $\den{C}_\epsilon$ and exit-conditioned mixture
+$\Mix_\epsilon(C,\rho)$).
+
+A first idea for bug-catching using a correctness logic is to prove the negation of a Hoare triple:
+\[
+\neg\bigl(\models \{P\}\,C\,\{Q\}\bigr),
+\]
+hoping this would imply a ``bug postcondition'' like $\{P\}\,C\,\{\neg Q\}$. In general, even in the
+classical setting this implication fails, but the quantum situation is strictly worse because of the
+interaction between (i) mixtures and (ii) projection predicates.
+
+If we use projection satisfaction (support inclusion) to specify erroneous outcomes, then mixtures
+can force false positives.
+Concretely, let $P_c = \ket{0}\!\bra{0}$ be the intended ``correct'' predicate and consider the mixed
+(erroneous) state
+\[
+\rho_e = \tfrac12\bigl(\ket{0}\!\bra{0}+\ket{1}\!\bra{1}\bigr),
+\]
+which contains both a good component $\ket{0}\!\bra{0}$ and a bad component $\ket{1}\!\bra{1}$.
+If we try to describe $\rho_e$ by finding a projection $Q_e$ such that $\rho_e$ satisfies $Q_e$, then
+$Q_e$ must contain $\supp(\rho_e)$, hence it necessarily also contains the good state
+$\ket{0}\!\bra{0}$. Any such $Q_e$ therefore also ``accepts'' a correct state, which is a false positive.
+
+This is the conceptual mismatch: satisfaction of a projection $P$ is a universal-style statement
+(``the whole state lies inside $P$''), but bug-catching is existential-style (``some bad behavior is
+possible'').
+
+Moreover, in classical IL, a result predicate can be understood as a set of states and ``achieving'' it means
+reaching each of its states from some initial state. If we try to transport that interpretation naively
+to projections (even with under-approximation), it becomes unreasonable: a projection typically
+under-approximates infinitely many density operators, while a finite program has only finitely many
+branch outcomes at each step.
+For example, measuring one qubit yields at most two post-states, so it cannot literally ``reach all''
+density matrices under-approximated by $\ket{0}\!\bra{0}$.
+
+QIL resolves both obstacles by:
+(i) replacing satisfaction by an under-approximation relation that can pinpoint ``100\% bad''
+directions without capturing good states;
+(ii) interpreting ``achieving $Q$'' as: $Q$ under-approximates the \emph{probabilistic mixture} of
+reachable terminal states (with the chosen exit condition), rather than requiring reachability of
+every individual state described by $Q$.
+
+
+\subsection{Under-Approximation Relation}\label{subsec:qil-underapprox}
+
+We use the under-approximation relation from the prerequisites chapter as the basic semantic
+notion of ``evidence of a bug'':
+Let $P$ be a projection on $H$ and let $\rho \in \Dsub{H}$ be a (possibly subnormalized) density
+operator. We say that $P$ under-approximates $\rho$, written
+$P \ua \rho,$
+if $\Ran(P)\subseteq \supp(\rho)$. 
+
+Intuitively, $P \ua \rho$ means that $\rho$ has nonzero weight in every direction of the subspace $P$,
+so $P$ can be read as a ``definite bad component'' present in $\rho$. This is exactly the inverted
+direction compared to satisfaction-by-support-inclusion.
+
+The main structural facts we will use are:
+(i) Monotonicity in the predicate: if $P\le Q$ and $Q \ua \rho$ then $P \ua \rho$;
+(ii) Mixtures behave like disjunction: if $\rho=\rho_1+\rho_2$, then $P \ua \rho$ iff
+$P \le (\Pi_{\rho_1}\vee \Pi_{\rho_2})$, i.e.\ $P$ sits inside the join of the component supports.
+
+These properties explain why QIL uses projection connectives and why it reasons about mixtures of
+reachable states rather than single states.
+
+
+\subsection{Strong Validity}\label{subsec:qil-strong-validity}
+
+QIL triples are indexed by an exit condition $\epsilon\in\{\ok,\er\}$ and have the form
+\[
+[P]\ C\ [\epsilon:Q],
+\]
+where $P,Q$ are projections on $H$.
+
+From the collecting semantics (Section~7), for each command $C$ and exit $\epsilon$, we have a
+multiset-valued denotation
+\[
+\den{C}_\epsilon : \Dsub{H}\to \Mset(\Dsub{H}),
+\]
+and we form the exit-conditioned mixture by summing the multiset:
+\[
+\Mix_\epsilon(C,\rho)\ :=\ \sum\bigl(\den{C}_\epsilon(\rho)\bigr)\ \in\ \Dsub{H}.
+\]
+
+\begin{definition}[Strong validity of QIL triples]\label{def:qil-strong-validity}
+A QIL triple is (strongly) valid, written $\models [P]\,C\,[\epsilon:Q]$, if for all
+$\rho\in\Dsub{H}$,
+\[
+P \ua \rho\quad\Longrightarrow\quad Q \ua \Mix_\epsilon(C,\rho).
+\]
+\end{definition}
+
+This definition formalizes the slogan:
+if the initial state contains at least the behaviors in $P$, then the mixture of reachable terminal
+states (with exit $\epsilon$) contains at least the behaviors in $Q$.
+
+\paragraph{Predicate-transformer view (post-image).}
+We will package strong validity via a post-image transformer on projections. Let $P$ be a
+projection. Choose any $\rho_P\in\Dsub{H}$ with $\supp(\rho_P)=\Ran(P)$ (the paper uses
+$\rho_P=P/\Tr(P)$ when $P\neq 0$, else $0$). Define
+\[
+\post_\epsilon(C)(P)\ :=\ \supp\bigl(\Mix_\epsilon(C,\rho_P)\bigr),
+\]
+viewed as the projection onto that support subspace. This is well-defined (independent of the
+choice of $\rho_P$ with support $P$).
+Then strong validity has the equivalent form
+\[
+\models [P]\,C\,[\epsilon:Q]\quad\Longleftrightarrow\quad
+\post_\epsilon(C)(P)\ \supseteq\ Q.
+\]
+
+\paragraph{Duality with quantum Hoare reasoning.}
+For programs without $\error$, the same post transformer $\post_{\ok}$ is also the one used in
+(applied) quantum Hoare logic, but with the opposite inclusion direction:
+\[
+\models \{P\}\,C\,\{Q\}\ \Longleftrightarrow\ \post_{\ok}(C)(P)\subseteq Q,
+\qquad
+\models [P]\,C\,[\epsilon:Q]\ \Longleftrightarrow\ \post_{\epsilon}(C)(P)\supseteq Q.
+\]
+However, we chose to present CoqQ's reasoning style which did not use the post-image transformer.
+
+\subsection{Proof System}\label{subsec:qil-rules}
+
+We write $\vdash [P]\,C\,[\epsilon:Q]$ for derivability in the QIL proof system.
+
+\[
+\infer[(\textsc{Empty})]{}
+{\vdash [P]\ C\ [\epsilon:0]}
+\]
+
+\[
+\infer[(\textsc{Error})]{}
+{\vdash [P]\ \error\ [\ok:0]\ [\er:P]}
+\qquad
+\infer[(\textsc{Skip})]{}
+{\vdash [P]\ \Skip\ [\ok:P]\ [\er:0]}
+\]
+
+\[
+\infer[(\textsc{Unitary})]{}
+{\vdash [P]\ \mathsf{apply}\ U_s\ [\ok:U_s^{(s)}\,P\,(U_s^{(s)})^\dagger]\ [\er:0]}
+\]
+
+\medskip
+\noindent
+Initialization in the QIL paper is the special case ``prepare $\ket{0}$ on a qubit''; in our syntax this
+is $\mathsf{init}\ \rho_s$ with $\rho_s=\ket{0}\!\bra{0}$ and $s=\{q\}$. The rule is:
+
+\[
+\infer[(\textsc{Init})]
+{\vdash [P]\ \mathsf{init}\ \ket{0}\!\bra{0}_{\{q\}}\ [\ok:\supp(\sum_{n}\,K_n^{(q)}\,P\,(K_n^{(q)})^\dagger)]\ [\er:0]}
+{}
+\]
+where $\{K_n\}_n$ are the Kraus operators of the reset-to-$\ket{0}$ map on $q$
+(as in the QIL paper, this is written concretely using $\ket{0}\!\bra{n}$ operators, and one must take
+$\supp(\cdot)$ because the raw expression need not be a projection).
+
+\[
+\infer[(\textsc{Seq1})]
+{\vdash [P]\ C_1\ [\ok:R] \quad \vdash [R]\ C_2\ [\epsilon:Q]}
+{\vdash [P]\ C_1;C_2\ [\epsilon:Q]}
+\qquad
+\infer[(\textsc{Seq2})]
+{\vdash [P]\ C_1\ [\er:Q]}
+{\vdash [P]\ C_1;C_2\ [\er:Q]}
+\]
+
+\[
+\infer[(\textsc{Order})]
+{P\supseteq P' \quad \vdash [P']\ C\ [\epsilon:Q'] \quad Q'\supseteq Q}
+{\vdash [P]\ C\ [\epsilon:Q]}
+\]
+
+\[
+\infer[(\textsc{Disjunction})]
+{\vdash [P_1]\ C\ [\epsilon:Q_1] \quad \vdash [P_2]\ C\ [\epsilon:Q_2]}
+{\vdash [P_1\vee P_2]\ C\ [\epsilon:Q_1\vee Q_2]}
+\]
+
+
+Let $M_s=\{(m,M_m)\}_{m\in\mathsf{Out}(M_s)}$ be a measurement on subsystem $s$ and recall the
+post-measurement state is $M_m^{(s)}\,\rho\,(M_m^{(s)})^\dagger$.
+
+\[
+\infer[(\textsc{If})]
+{\forall m\in\mathsf{Out}(M_s),\ 
+ \vdash \bigl[\supp(M_m^{(s)}\,P\,(M_m^{(s)})^\dagger)\bigr]\ C_m\ [\epsilon:Q]}
+{\vdash [P]\ \mathsf{if}\ (\square m.\ M_s=m\rightarrow C_m)\ \mathsf{fi}\ [\epsilon:Q]}
+\]
+(The support appears because measurement changes the state before the branch code runs.)
+
+Let $W\equiv \mathsf{while}\ M'_s=1\ \mathsf{do}\ C\ \mathsf{od}$ with $M'_s=\{M_0,M_1\}$.
+
+\[
+\infer[(\textsc{While1})]
+{\forall n.\ \vdash\bigl[\supp(M_1^{(s)}\,P_n\,(M_1^{(s)})^\dagger)\bigr]\ C\ [\ok:P_{n+1}]}
+{\vdash [P_0]\ W\ [\ok:\supp(M_0^{(s)}\,P_N\,(M_0^{(s)})^\dagger)]}
+\]
+
+\[
+\infer[(\textsc{While2})]
+{\forall n.\ \vdash\bigl[\supp(M_1^{(s)}\,P_n\,(M_1^{(s)})^\dagger)\bigr]\ C\ [\ok:P_{n+1}]
+ \quad
+ \vdash\bigl[\supp(M_1^{(s)}\,P_N\,(M_1^{(s)})^\dagger)\bigr]\ C\ [\er:Q]}
+{\vdash [P_0]\ W\ [\er:Q]}
+\]
+These are exactly the loop-variant style rules from QIL: $P_n$ tracks what can be achieved after
+$n$ completed continue-iterations.
+
+
+\[
+\infer[(\textsc{Assert})]
+{Q_{\ok}=\supp(RPR^\dagger)\quad Q_{\er}=\supp(R^\perp P (R^\perp)^\dagger)}
+{\vdash [P]\ \mathsf{assert}(R)\ [\ok:Q_{\ok}]\ [\er:Q_{\er}]}
+\]
+where $\mathsf{assert}(R)$ is encoded as a measurement with outcomes
+true$\to\Skip$ and false$\to\error$ (as in the QIL paper).
+
+\[
+\infer[(\textsc{Derived If})]
+{\forall m,\ \vdash\bigl[\supp(M_m^{(s)} P (M_m^{(s)})^\dagger)\bigr]\ C_m\ [\epsilon:Q_m]}
+{\vdash [P]\ \mathsf{if}\ (\square m.\ M_s=m\rightarrow C_m)\ \mathsf{fi}\ [\epsilon:\bigvee_m Q_m]}
+\]
+
+\[
+\infer[(\textsc{Derived While})]
+{\forall n< N.\ \vdash\bigl[\supp(M_1^{(s)} P_n (M_1^{(s)})^\dagger)\bigr]\ C\ [\ok:P_{n+1}]}
+{\vdash [P_0]\ W\ [\ok:\bigvee_{i=0}^{N}\supp(M_0^{(s)} P_i (M_0^{(s)})^\dagger)]}
+\]
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+\subsection{Soundness of the Logic}\label{subsec:qil-soundness}
+
+\begin{theorem}[Soundness]\label{thm:qil-soundness}
+For any qwhile command $C$, exit condition $\epsilon\in\{\ok,\er\}$, and projections $P,Q$,
+\[
+\vdash [P]\ C\ [\epsilon:Q]\quad\Longrightarrow\quad \models [P]\ C\ [\epsilon:Q].
+\]
+\end{theorem}
+\noindent Before we prove the theorem, we present several useful lemmas:
+
+\begin{lemma}\label{lem:ua-zero}
+For every $\rho \sqsupseteq 0$, we have $0 \ua \rho$.
+\end{lemma}
+\begin{proof}
+$\Ran(0)=\{0\}\subseteq \supp(\rho)$ for all $\rho\sqsupseteq 0$.
+\end{proof}
+
+\begin{lemma}\label{lem:supp-mono-scale}
+If $A,B\sqsupseteq 0$ and $A \sqsupseteq \alpha B$ for some $\alpha>0$, then $\supp(B)\subseteq \supp(A)$.
+Equivalently, if $\Pi_B$ is the support projector of $B$, then $\Pi_B \ua A$.
+\end{lemma}
+\begin{proof}
+From $A-\alpha B\sqsupseteq 0$, we get: if $A v=0$ then $\langle v,Av\rangle=0$ and
+$0\le \alpha\langle v,Bv\rangle \le \langle v,Av\rangle=0$, hence $\langle v,Bv\rangle=0$.
+Since $B\sqsupseteq 0$, $\langle v,Bv\rangle=0$ implies $Bv=0$, so $\ker(A)\subseteq \ker(B)$.
+Taking orthogonal complements gives $\supp(B)=(\ker B)^\perp \subseteq (\ker A)^\perp=\supp(A)$.
+\end{proof}
+
+\begin{lemma}\label{lem:ua-to-ineq}
+Let $P$ be a projection and $\rho\sqsupseteq 0$. If $P \ua \rho$, then there exists $\alpha>0$ such that
+$\rho \sqsupseteq \alpha P$.
+\end{lemma}
+\begin{proof}
+Let $S:=\Ran(P)$. The condition $P \ua \rho$ means $S\subseteq \supp(\rho)=(\ker\rho)^\perp$,
+so $\rho$ has trivial kernel on $S$; equivalently, the restriction $\rho|_{S}:S\to S$ is positive
+definite.
+Since $S$ is finite-dimensional, $\rho|_S$ has a smallest eigenvalue $\alpha>0$, so
+$\langle v,\rho v\rangle \ge \alpha \|v\|^2$ for all $v\in S$.
+This inequality is exactly $\rho \sqsupseteq \alpha P$ on all of $H$, because $P$ is the orthogonal
+projector onto $S$.
+\end{proof}
+
+
+
+\begin{lemma}[\textsc{Empty} is sound]\label{lem:sound-empty}
+For every command $C$, every projection $P$, and every exit condition $\epsilon\in\{\ok,\er\}$,
+\[
+\models [P]\ C\ [\epsilon:0].
+\]
+\end{lemma}
+\begin{proof}
+Fix $\rho\in\Dsub{H}$ and assume $P \ua \rho$. We must show $0 \ua \Mix_\epsilon(C,\rho)$.
+But this holds for all outputs by Lemma~\ref{lem:ua-zero}. Hence the triple is strongly valid.
+\end{proof}
+
+
+\begin{lemma}[\textsc{Error} is sound]\label{lem:sound-error}
+For every projection $P$,
+\[
+\models [P]\ \error\ [\ok:0]
+\qquad\text{and}\qquad
+\models [P]\ \error\ [\er:P].
+\]
+\end{lemma}
+\begin{proof}
+Fix $\rho\in\Dsub{H}$ and assume $P \ua \rho$.
+
+\smallskip\noindent
+\emph{Ok-branch.}
+By the collecting semantics of $\error$, $\den{\error}_{\ok}(\rho)=\mset{0}$, hence
+$\Mix_{\ok}(\error,\rho)=0$.
+Therefore $0 \ua \Mix_{\ok}(\error,\rho)$ by Lemma~\ref{lem:ua-zero}.
+
+\smallskip\noindent
+\emph{Er-branch.}
+Also $\den{\error}_{\er}(\rho)=\mset{\rho}$, hence $\Mix_{\er}(\error,\rho)=\rho$.
+Thus $P \ua \Mix_{\er}(\error,\rho)$ holds immediately from the assumption $P \ua \rho$.
+\end{proof}
+
+
+\begin{lemma}[\textsc{Skip} is sound]\label{lem:sound-skip}
+For every projection $P$,
+\[
+\models [P]\ \Skip\ [\ok:P]
+\qquad\text{and}\qquad
+\models [P]\ \Skip\ [\er:0].
+\]
+\end{lemma}
+\begin{proof}
+Fix $\rho\in\Dsub{H}$ and assume $P \ua \rho$.
+
+\smallskip\noindent
+\emph{Ok-branch.}
+$\den{\Skip}_{\ok}(\rho)=\mset{\rho}$, hence $\Mix_{\ok}(\Skip,\rho)=\rho$. Therefore
+$P \ua \Mix_{\ok}(\Skip,\rho)$ is exactly the assumption $P \ua \rho$.
+
+\smallskip\noindent
+\emph{Er-branch.}
+$\den{\Skip}_{\er}(\rho)=\mset{0}$, hence $\Mix_{\er}(\Skip,\rho)=0$. Therefore
+$0 \ua \Mix_{\er}(\Skip,\rho)$ by Lemma~\ref{lem:ua-zero}.
+\end{proof}
+
+
+\begin{lemma}[\textsc{Unitary} is sound]\label{lem:sound-unitary}
+Let $U_s$ be unitary on subsystem $s$, and write $U:=U_s^{(s)}$ for its cylindrical extension.
+Then for every projection $P$,
+\[
+\models [P]\ \mathsf{apply}\ U_s\ [\ok:UPU^\dagger]
+\qquad\text{and}\qquad
+\models [P]\ \mathsf{apply}\ U_s\ [\er:0].
+\]
+\end{lemma}
+\begin{proof}
+Fix $\rho\in\Dsub{H}$ and assume $P \ua \rho$.
+
+\smallskip\noindent
+\emph{Ok-branch.}
+The collecting semantics gives $\den{\mathsf{apply}\ U_s}_{\ok}(\rho)=\mset{U\rho U^\dagger}$, hence
+$\Mix_{\ok}(\mathsf{apply}\ U_s,\rho)=U\rho U^\dagger$.
+We must show $UPU^\dagger \ua U\rho U^\dagger$, i.e.
+\[
+\Ran(UPU^\dagger)\subseteq \supp(U\rho U^\dagger).
+\]
+But $\Ran(UPU^\dagger)=U(\Ran(P))$, and by support calculus,
+$\supp(U\rho U^\dagger)=U(\supp(\rho))$.
+Since $P \ua \rho$ means $\Ran(P)\subseteq \supp(\rho)$, applying $U$ yields
+$U(\Ran(P))\subseteq U(\supp(\rho))$, hence $UPU^\dagger \ua U\rho U^\dagger$.
+
+\smallskip\noindent
+\emph{Er-branch.}
+$\den{\mathsf{apply}\ U_s}_{\er}(\rho)=\mset{0}$, so $\Mix_{\er}(\mathsf{apply}\ U_s,\rho)=0$ and
+$0\ua 0$ by Lemma~\ref{lem:ua-zero}.
+\end{proof}
+
+
+\begin{lemma}[\textsc{Init} is sound]\label{lem:sound-init}
+Let $q$ be a register with basis $\{\ket{n}\}_{n=0}^{d-1}$ and consider initialization to $\ket{0}$:
+\[
+C_{\mathrm{init}} \;\equiv\; \mathsf{init}\ \ket{0}\!\bra{0}_{\{q\}}.
+\]
+Define Kraus operators on $H$ by
+\[
+K_n := \bigl(\ket{0}\!\bra{n}\bigr)^{(q)}\qquad (n=0,\dots,d-1),
+\]
+and for any projection $P$ define the (not-necessarily-projective) operator
+\[
+A_P := \sum_{n=0}^{d-1} K_n\,P\,K_n^\dagger,
+\qquad
+Q := \Pi_{A_P}\ \ (\text{the support projector of }A_P).
+\]
+Then for every projection $P$,
+\[
+\models [P]\ C_{\mathrm{init}}\ [\ok:Q]
+\qquad\text{and}\qquad
+\models [P]\ C_{\mathrm{init}}\ [\er:0].
+\]
+\end{lemma}
+
+\begin{proof}
+Fix $\rho\in\Dsub{H}$ and assume $P \ua \rho$.
+
+\smallskip\noindent
+\emph{Step 1:}
+Initialization always terminates normally, so $\den{C_{\mathrm{init}}}_{\er}(\rho)=\mset{0}$ and
+$\Mix_{\er}(C_{\mathrm{init}},\rho)=0$.
+On the normal branch, the standard Kraus form of reset gives
+\[
+\Mix_{\ok}(C_{\mathrm{init}},\rho) \;=\; \sum_{n=0}^{d-1} K_n\,\rho\,K_n^\dagger.
+\]
+(Equivalently, this equals $\ket{0}\!\bra{0}_{\{q\}}\otimes \Tr_q(\rho)$, but we keep the Kraus form
+since the postcondition is defined from $\sum_n K_n P K_n^\dagger$.)
+
+\smallskip\noindent
+\emph{Step 2:}
+We must show
+\[
+Q \ua \Mix_{\ok}(C_{\mathrm{init}},\rho),
+\quad\text{i.e.}\quad
+\supp(A_P) \subseteq \supp\!\Bigl(\sum_n K_n\rho K_n^\dagger\Bigr),
+\]
+because $\Ran(Q)=\supp(A_P)$ by definition of the support projector.
+
+\smallskip\noindent
+\emph{Step 3:}
+By Lemma~\ref{lem:ua-to-ineq}, from $P \ua \rho$ we get some $\alpha>0$ such that
+\[
+\rho \sqsupseteq \alpha P.
+\]
+
+\smallskip\noindent
+\emph{Step 4:}
+The map $E(X):=\sum_n K_n X K_n^\dagger$ is completely positive, hence positive and monotone:
+if $X \sqsupseteq Y \sqsupseteq 0$ then $E(X)\sqsupseteq E(Y)$.
+Applying $E$ to $\rho \sqsupseteq \alpha P$ yields
+\[
+\sum_n K_n\rho K_n^\dagger
+\;\sqsupseteq\;
+\alpha \sum_n K_n P K_n^\dagger
+\;=\;
+\alpha A_P.
+\]
+
+\smallskip\noindent
+\emph{Step 5: conclude support inclusion.}
+By Lemma~\ref{lem:supp-mono-scale}, from
+$\sum_n K_n\rho K_n^\dagger \sqsupseteq \alpha A_P$ with $\alpha>0$ we conclude
+\[
+\supp(A_P)\subseteq \supp\!\Bigl(\sum_n K_n\rho K_n^\dagger\Bigr).
+\]
+Thus $Q=\Pi_{A_P}$ under-approximates the normal-branch mixture:
+$Q \ua \Mix_{\ok}(C_{\mathrm{init}},\rho)$.
+
+\smallskip\noindent
+\emph{Er-branch.}
+As observed in Step~1, $\Mix_{\er}(C_{\mathrm{init}},\rho)=0$, hence $0\ua 0$ by Lemma~\ref{lem:ua-zero}.
+\end{proof}
+
+
+
+\begin{lemma}[]\label{lem:Sum-union}
+For multisets $\nu_1,\nu_2\in\Mset(\Dsub{H})$,
+\[
+\sum(\nu_1 \uplus \nu_2)=\sum(\nu_1)+\sum(\nu_2).
+\]
+\end{lemma}
+\begin{proof}
+By definition,
+\[
+\sum(\nu_1\uplus\nu_2)
+=\sum_{\sigma}(\nu_1(\sigma)+\nu_2(\sigma))\,\sigma
+=\sum_{\sigma}\nu_1(\sigma)\sigma+\sum_{\sigma}\nu_2(\sigma)\sigma
+=\sum(\nu_1)+\sum(\nu_2).
+\]
+\end{proof}
+
+\begin{lemma}[]\label{lem:Mix-seq}
+For any commands $C_1,C_2$ and any $\rho\in\Dsub{H}$,
+\[
+\Mix_{\ok}(C_1;C_2,\rho)=\den{C_2}\bigl(\Mix_{\ok}(C_1,\rho)\bigr),
+\]
+and
+\[
+\Mix_{\er}(C_1;C_2,\rho)=\Mix_{\er}(C_1,\rho)\;+\;\Mix_{\er}\!\bigl(C_2,\Mix_{\ok}(C_1,\rho)\bigr).
+\]
+\end{lemma}
+
+\begin{proof}
+We use the collecting sequencing clauses (Section~7):
+\[
+\den{C_1;C_2}_{\ok} := \den{C_2}_{\ok}\circ \den{C_1}_{\ok},
+\qquad
+\den{C_1;C_2}_{\er} := \den{C_1}_{\er}\uplus\bigl(\den{C_2}_{\er}\circ \den{C_1}_{\ok}\bigr),
+\]
+and the definition $\Mix_\epsilon(C,\rho)=\sum(\den{C}_\epsilon(\rho))$. 
+
+\smallskip\noindent
+\emph{Normal exit.}
+\begin{align*}
+\Mix_{\ok}(C_1;C_2,\rho)
+&=\sum\bigl(\den{C_1;C_2}_{\ok}(\rho)\bigr)
+=\sum\bigl((\den{C_2}_{\ok}\circ \den{C_1}_{\ok})(\rho)\bigr).
+\end{align*}
+By construction, $\den{C_2}$ (the super-operator semantics of Section~6) coincides with the
+normal-mixture semantics: $\den{C_2}(\sigma)=\Mix_{\ok}(C_2,\sigma)$ for all inputs $\sigma$,
+because $\den{\cdot}$ collapses branching by summation and treats abnormal termination as
+contributing $0$. 
+Therefore, running $C_2$ after collecting the normal outcomes of $C_1$ yields exactly
+$\den{C_2}(\Mix_{\ok}(C_1,\rho))$, giving the first equation.
+
+\smallskip\noindent
+\emph{Abnormal exit.}
+\begin{align*}
+\Mix_{\er}(C_1;C_2,\rho)
+&=\sum\bigl(\den{C_1;C_2}_{\er}(\rho)\bigr)\\
+&=\sum\Bigl(\den{C_1}_{\er}(\rho)\uplus (\den{C_2}_{\er}\circ \den{C_1}_{\ok})(\rho)\Bigr)\\
+&=\sum\bigl(\den{C_1}_{\er}(\rho)\bigr)\;+\;\sigma\bigl((\den{C_2}_{\er}\circ \den{C_1}_{\ok})(\rho)\bigr)
+\qquad\text{(Lemma~\ref{lem:Sum-union})}\\
+&=\Mix_{\er}(C_1,\rho)\;+\;\Mix_{\er}\!\bigl(C_2,\Mix_{\ok}(C_1,\rho)\bigr),
+\end{align*}
+where the second summand is ``errors that occur in $C_2$ after $C_1$ terminates normally''
+(consistent with the operational reading of sequencing). 
+\end{proof}
+
+
+\begin{lemma}[\textsc{Seq1} is sound]\label{lem:sound-seq1}
+Assume
+\[
+\models [P]\ C_1\ [\ok:R]
+\qquad\text{and}\qquad
+\models [R]\ C_2\ [\epsilon:Q],
+\]
+where $\epsilon\in\{\ok,\er\}$. Then
+\[
+\models [P]\ (C_1;C_2)\ [\epsilon:Q].
+\]
+\end{lemma}
+
+\begin{proof}
+Fix an arbitrary $\rho\in\Dsub{H}$ and assume $P\ua\rho$.
+From $\models [P]\ C_1\ [\ok:R]$ we obtain
+\[
+R\ua \Mix_{\ok}(C_1,\rho).
+\]
+Now apply $\models [R]\ C_2\ [\epsilon:Q]$ to the input state $\sigma:=\Mix_{\ok}(C_1,\rho)$:
+since $R\ua\sigma$, we get
+\[
+Q \ua \Mix_{\epsilon}(C_2,\sigma)
+= \Mix_{\epsilon}\!\bigl(C_2,\Mix_{\ok}(C_1,\rho)\bigr).
+\]
+
+\smallskip\noindent
+\emph{Case $\epsilon=\ok$.}
+By Lemma~\ref{lem:Mix-seq},
+\[
+\Mix_{\ok}(C_1;C_2,\rho)=\den{C_2}\bigl(\Mix_{\ok}(C_1,\rho)\bigr)
+=\Mix_{\ok}\!\bigl(C_2,\Mix_{\ok}(C_1,\rho)\bigr),
+\]
+so $Q \ua \Mix_{\ok}(C_1;C_2,\rho)$ as required.
+
+\smallskip\noindent
+\emph{Case $\epsilon=\er$.}
+By Lemma~\ref{lem:Mix-seq},
+\[
+\Mix_{\er}(C_1;C_2,\rho)
+=\Mix_{\er}(C_1,\rho)+\Mix_{\er}\!\bigl(C_2,\Mix_{\ok}(C_1,\rho)\bigr).
+\]
+Since $\Mix_{\er}\!\bigl(C_2,\Mix_{\ok}(C_1,\rho)\bigr)\sqsupseteq 0$, we have
+\[
+\supp\!\Bigl(\Mix_{\er}\!\bigl(C_2,\Mix_{\ok}(C_1,\rho)\bigr)\Bigr)
+\subseteq
+\supp\!\bigl(\Mix_{\er}(C_1;C_2,\rho)\bigr).
+\]
+Then by monotonicity of under-approximation w.r.t. support inclusion
+(Lemma~4.54(ii) in the prerequisites), from
+$Q \ua \Mix_{\er}(C_2,\Mix_{\ok}(C_1,\rho))$ we conclude
+$Q \ua \Mix_{\er}(C_1;C_2,\rho)$.
+
+In both cases, $Q \ua \Mix_{\epsilon}(C_1;C_2,\rho)$ follows. Since $\rho$ was arbitrary, the
+triple is strongly valid.
+\end{proof}
+
+\begin{lemma}[\textsc{Seq2} is sound]\label{lem:sound-seq2}
+Assume $\models [P]\ C_1\ [\er:Q]$. Then
+\[
+\models [P]\ (C_1;C_2)\ [\er:Q]
+\]
+for any command $C_2$.
+\end{lemma}
+
+\begin{proof}
+Fix $\rho\in\Dsub{H}$ and assume $P\ua\rho$.
+By assumption, $Q \ua \Mix_{\er}(C_1,\rho)$.
+
+By Lemma~\ref{lem:Mix-seq},
+\[
+\Mix_{\er}(C_1;C_2,\rho)
+=\Mix_{\er}(C_1,\rho)+\Mix_{\er}\!\bigl(C_2,\Mix_{\ok}(C_1,\rho)\bigr).
+\]
+Hence $\supp(\Mix_{\er}(C_1,\rho))\subseteq \supp(\Mix_{\er}(C_1;C_2,\rho))$.
+Using Lemma~4.54(ii) (monotonicity under support inclusion), from
+$Q \ua \Mix_{\er}(C_1,\rho)$ we conclude $Q \ua \Mix_{\er}(C_1;C_2,\rho)$. 
+\end{proof}
+
+
+\begin{lemma}[\textsc{Order} is sound]\label{lem:sound-order}
+Assume $P\supseteq P'$, $Q'\supseteq Q$, and $\models [P']\ C\ [\epsilon:Q']$.
+Then $\models [P]\ C\ [\epsilon:Q]$.
+\end{lemma}
+
+\begin{proof}
+Fix $\rho\in\Dsub{H}$ and assume $P\ua\rho$.
+
+Since $P\supseteq P'$ means $P'\le P$ (range inclusion), by monotonicity in the predicate
+(Lemma~4.54(i)) we have $P'\ua\rho$. 
+Now apply $\models [P']\ C\ [\epsilon:Q']$ to get $Q' \ua \Mix_{\epsilon}(C,\rho)$.
+
+Finally, $Q'\supseteq Q$ means $Q\le Q'$, and again by Lemma~4.54(i),
+from $Q'\ua \Mix_{\epsilon}(C,\rho)$ we conclude $Q \ua \Mix_{\epsilon}(C,\rho)$. 
+Thus $\models [P]\ C\ [\epsilon:Q]$.
+\end{proof}
+
+\begin{lemma}[\textsc{Disjunction} is sound]\label{lem:sound-disjunction}
+Assume $\models [P_1]\ C\ [\epsilon:Q_1]$ and $\models [P_2]\ C\ [\epsilon:Q_2]$.
+Then
+\[
+\models [P_1\vee P_2]\ C\ [\epsilon:Q_1\vee Q_2].
+\]
+\end{lemma}
+
+\begin{proof}
+Fix $\rho\in\Dsub{H}$ and assume $(P_1\vee P_2)\ua\rho$.
+Under-approximation treats $\vee$ as conjunction:
+\[
+(P_1\vee P_2)\ua\rho \quad\Longleftrightarrow\quad (P_1\ua\rho)\ \wedge\ (P_2\ua\rho)
+\]
+(Lemma~4.56(ii)). 
+Hence $P_1\ua\rho$ and $P_2\ua\rho$.
+
+Applying the two premises yields
+\[
+Q_1\ua\Mix_{\epsilon}(C,\rho)
+\qquad\text{and}\qquad
+Q_2\ua\Mix_{\epsilon}(C,\rho).
+\]
+Using the same connective law again,
+\[
+(Q_1\vee Q_2)\ua \Mix_{\epsilon}(C,\rho)
+\quad\Longleftrightarrow\quad
+(Q_1\ua \Mix_{\epsilon}(C,\rho))\ \wedge\ (Q_2\ua \Mix_{\epsilon}(C,\rho)),
+\]
+so we conclude $(Q_1\vee Q_2)\ua \Mix_{\epsilon}(C,\rho)$.
+Thus $\models [P_1\vee P_2]\ C\ [\epsilon:Q_1\vee Q_2]$.
+\end{proof}
+
+
+\begin{lemma}\label{lem:ua-state-mono}
+If $X,Y\sqsupseteq 0$ and $X \sq Y$ (i.e.\ $Y-X\sqsupseteq 0$), then $\supp(X)\subseteq \supp(Y)$.
+Consequently, if $Q$ is a projection and $Q \ua X$, then $Q \ua Y$.
+\end{lemma}
+\begin{proof}
+If $X\sq Y$ then $\ker(Y)\subseteq \ker(X)$: indeed, $Yv=0$ implies $\langle v,Yv\rangle=0$ and
+$0\le \langle v,Xv\rangle \le \langle v,Yv\rangle=0$, hence $Xv=0$.
+Taking orthogonal complements yields $\supp(X)\subseteq \supp(Y)$.
+If $Q\ua X$, then $\Ran(Q)\subseteq \supp(X)\subseteq \supp(Y)$, so $Q\ua Y$.
+\end{proof}
+
+
+\begin{lemma}\label{lem:ua-kraus-prem}
+Let $K$ be any linear operator on $H$. For every projection $P$ and every $\rho\sqsupseteq 0$,
+\[
+P \ua \rho
+\quad\Longrightarrow\quad
+\Pi_{KPK^\dagger} \ua K\rho K^\dagger .
+\]
+\end{lemma}
+\begin{proof}
+Assume $P\ua\rho$. By Lemma~\ref{lem:ua-to-ineq}, $\rho\sqsupseteq \alpha P$ for some $\alpha>0$.
+Conjugating by $K$ preserves the Löwner order, so
+\[
+K\rho K^\dagger \sqsupseteq \alpha\,KPK^\dagger.
+\]
+By Lemma~\ref{lem:ua-state-mono}, $\supp(KPK^\dagger)\subseteq \supp(K\rho K^\dagger)$, i.e.
+$\Pi_{KPK^\dagger}\ua K\rho K^\dagger$.
+\end{proof}
+
+\begin{lemma}\label{lem:ua-join}
+Let $(Q_i)_{i\in I}$ be any family of projections on $H$, and let $\rho\sqsupseteq 0$.
+If $Q_i \ua \rho$ for all $i\in I$, then $\bigvee_{i\in I} Q_i \ua \rho$.
+\end{lemma}
+\begin{proof}
+Each $Q_i \ua \rho$ means $\Ran(Q_i)\subseteq \supp(\rho)$.
+Therefore $\mathrm{span}\bigl(\bigcup_i \Ran(Q_i)\bigr)\subseteq \supp(\rho)$.
+But $\Ran(\bigvee_i Q_i)=\mathrm{span}(\bigcup_i \Ran(Q_i))$, hence $\bigvee_i Q_i \ua \rho$.
+\end{proof}
+
+\begin{lemma}\label{lem:Mix-if}
+Let $C \equiv \mathsf{if}\ (\square m.\ M_s=m\rightarrow C_m)\ \mathsf{fi}$ and
+$M_s=\{(m,M_m)\}_{m\in\Out(M_s)}$.
+Then for each $\epsilon\in\{\ok,\er\}$ and each $\rho\in\Dsub{H}$,
+\[
+\Mix_\epsilon(C,\rho)
+=
+\sum_{m\in\Out(M_s)}
+\Mix_\epsilon\!\Bigl(C_m,\ M_m^{(s)}\,\rho\,\bigl(M_m^{(s)}\bigr)^\dagger\Bigr).
+\]
+\end{lemma}
+\begin{proof}
+By the collecting semantics of conditionals,
+\[
+\den{C}_\epsilon(\rho)
+=
+\biguplus_{m\in\Out(M_s)}
+\den{C_m}_\epsilon\!\Bigl(M_m^{(s)}\,\rho\,\bigl(M_m^{(s)}\bigr)^\dagger\Bigr).
+\]
+Applying $\sum$ and using distributivity over multiset union yields the stated sum, and each summand
+is exactly $\Mix_\epsilon(C_m,\cdot)$ by definition.
+\end{proof}
+
+\begin{lemma}[\textsc{If} is sound]\label{lem:sound-if}
+Let $C \equiv \mathsf{if}\ (\square m.\ M_s=m\rightarrow C_m)\ \mathsf{fi}$ and let
+$M_s=\{(m,M_m)\}_{m\in\Out(M_s)}$.
+Fix $\epsilon\in\{\ok,\er\}$ and a projection $Q$.
+Assume that for all $m\in\Out(M_s)$,
+\[
+\models\bigl[\Pi_{\,M_m^{(s)}\,P\,\bigl(M_m^{(s)}\bigr)^\dagger}\bigr]\ C_m\ [\epsilon:Q].
+\]
+Then
+\[
+\models [P]\ C\ [\epsilon:Q].
+\]
+\end{lemma}
+
+\begin{proof}
+Fix $\rho\in\Dsub{H}$ and assume $P\ua\rho$.
+For each $m\in\Out(M_s)$, define the post-measurement state
+\[
+\rho_m := M_m^{(s)}\,\rho\,\bigl(M_m^{(s)}\bigr)^\dagger.
+\]
+By Lemma~\ref{lem:ua-kraus-prem} (with $K=M_m^{(s)}$), from $P\ua\rho$ we obtain
+\[
+\Pi_{\,M_m^{(s)}\,P\,\bigl(M_m^{(s)}\bigr)^\dagger} \ua \rho_m.
+\]
+Apply the premise (strong validity of the $m$-th branch) to $\rho_m$ to get
+\[
+Q \ua \Mix_\epsilon(C_m,\rho_m).
+\]
+Now by Lemma~\ref{lem:Mix-if},
+\[
+\Mix_\epsilon(C,\rho)
+=
+\sum_{m\in\Out(M_s)} \Mix_\epsilon(C_m,\rho_m).
+\]
+For each fixed $m$, we have
+$\Mix_\epsilon(C_m,\rho_m) \sq \sum_{k}\Mix_\epsilon(C_k,\rho_k)=\Mix_\epsilon(C,\rho)$,
+so by Lemma~\ref{lem:ua-state-mono}, from $Q\ua \Mix_\epsilon(C_m,\rho_m)$ we conclude
+$Q\ua \Mix_\epsilon(C,\rho)$.
+Since $\rho$ was arbitrary, $\models [P]\ C\ [\epsilon:Q]$ holds.
+\end{proof}
+
+
+\begin{lemma}\label{lem:Mix-while-decomp}
+Let $W \equiv \mathsf{while}\ M'_s=1\ \mathsf{do}\ C\ \mathsf{od}$ with $M'_s=\{M_0,M_1\}$.
+Define a sequence of partial states $(\sigma_n)_{n\ge 0}$ by
+\[
+\sigma_0 := \rho,
+\qquad
+\sigma_{n+1} := \Mix_{\ok}\!\Bigl(C,\ M_1^{(s)}\,\sigma_n\,\bigl(M_1^{(s)}\bigr)^\dagger\Bigr).
+\]
+Then:
+\[
+\Mix_{\ok}(W,\rho) = \sum_{n\ge 0} M_0^{(s)}\,\sigma_n\,\bigl(M_0^{(s)}\bigr)^\dagger,
+\]
+and
+\[
+\Mix_{\er}(W,\rho) = \sum_{n\ge 0} \Mix_{\er}\!\Bigl(C,\ M_1^{(s)}\,\sigma_n\,\bigl(M_1^{(s)}\bigr)^\dagger\Bigr).
+\]
+\end{lemma}
+
+\begin{proof}
+This is a direct unpacking of the collecting loop semantics in the QIL style:
+normal termination consists of $n$ continue rounds (outcome $1$ then execute $C$ normally),
+followed by a stop round (outcome $0$); abnormal termination consists of $n$ normal iterations
+followed by a continue outcome $1$ whose subsequent body execution exits abnormally.
+Summing (mixing) the multiset denotations yields the two series above.
+\end{proof}
+
+
+\begin{lemma}[\textsc{While1} is sound]\label{lem:sound-while1}
+Let $W \equiv \mathsf{while}\ M'_s=1\ \mathsf{do}\ C\ \mathsf{od}$ with $M'_s=\{M_0,M_1\}$.
+Let $(P_n)_{n\ge 0}$ be a sequence of projections.
+Assume that for all $n\ge 0$,
+\[
+\models \bigl[\Pi_{\,M_1^{(s)}\,P_n\,\bigl(M_1^{(s)}\bigr)^\dagger}\bigr]\ C\ [\ok:P_{n+1}].
+\]
+Define the projection
+\[
+Q_{\ok} \;:=\; \bigvee_{n\ge 0}\ \Pi_{\,M_0^{(s)}\,P_n\,\bigl(M_0^{(s)}\bigr)^\dagger}.
+\]
+Then
+\[
+\models [P_0]\ W\ [\ok:Q_{\ok}].
+\]
+\end{lemma}
+
+\begin{proof}
+Fix $\rho\in\Dsub{H}$ and assume $P_0\ua\rho$.
+
+\smallskip\noindent
+\emph{Define the loop-head mixtures $\sigma_n$ and show $P_n\ua\sigma_n$ for all $n$.}
+Let $(\sigma_n)$ be as in Lemma~\ref{lem:Mix-while-decomp}:
+$\sigma_0=\rho$ and $\sigma_{n+1}=\Mix_{\ok}(C, M_1^{(s)}\sigma_n(M_1^{(s)})^\dagger)$.
+We prove by induction on $n$ that
+\[
+P_n \ua \sigma_n.
+\]
+Base $n=0$: $\sigma_0=\rho$, so $P_0\ua\sigma_0$ is the assumption.
+
+Inductive step: assume $P_n\ua\sigma_n$.
+By Lemma~\ref{lem:ua-kraus-prem} with $K=M_1^{(s)}$,
+\[
+\Pi_{\,M_1^{(s)}\,P_n\,\bigl(M_1^{(s)}\bigr)^\dagger} \ua
+M_1^{(s)}\,\sigma_n\,\bigl(M_1^{(s)}\bigr)^\dagger.
+\]
+Apply the premise (strong validity for iteration $n$) to the input
+$M_1^{(s)}\sigma_n(M_1^{(s)})^\dagger$ to obtain
+\[
+P_{n+1} \ua
+\Mix_{\ok}\!\Bigl(C,\ M_1^{(s)}\,\sigma_n\,\bigl(M_1^{(s)}\bigr)^\dagger\Bigr)
+=
+\sigma_{n+1}.
+\]
+Thus $P_{n+1}\ua\sigma_{n+1}$.
+
+\smallskip\noindent
+\emph{Show each termination component under-approximates the corresponding stop-support.}
+For each $n$, define the $n$-th stopping contribution
+\[
+\tau_n := M_0^{(s)}\,\sigma_n\,\bigl(M_0^{(s)}\bigr)^\dagger.
+\]
+From $P_n\ua\sigma_n$ and Lemma~\ref{lem:ua-kraus-prem} with $K=M_0^{(s)}$ we get
+\[
+\Pi_{\,M_0^{(s)}\,P_n\,\bigl(M_0^{(s)}\bigr)^\dagger} \ua \tau_n.
+\]
+Moreover, by Lemma~\ref{lem:Mix-while-decomp},
+\[
+\Mix_{\ok}(W,\rho) = \sum_{k\ge 0}\tau_k,
+\]
+so $\tau_n \sq \Mix_{\ok}(W,\rho)$ for each $n$, and by Lemma~\ref{lem:ua-state-mono},
+\[
+\Pi_{\,M_0^{(s)}\,P_n\,\bigl(M_0^{(s)}\bigr)^\dagger} \ua \Mix_{\ok}(W,\rho)
+\qquad\text{for all }n.
+\]
+
+\smallskip\noindent
+\emph{Take the join.}
+Since each join-component under-approximates $\Mix_{\ok}(W,\rho)$, Lemma~\ref{lem:ua-join} yields
+\[
+Q_{\ok}=\bigvee_{n\ge 0}\Pi_{\,M_0^{(s)}\,P_n\,\bigl(M_0^{(s)}\bigr)^\dagger}
+\ua \Mix_{\ok}(W,\rho).
+\]
+This is exactly the desired strong validity for the loop on the normal exit.
+\end{proof}
+
+
+\begin{lemma}[\textsc{While2} is sound]\label{lem:sound-while2}
+Let $W \equiv \mathsf{while}\ M'_s=1\ \mathsf{do}\ C\ \mathsf{od}$ with $M'_s=\{M_0,M_1\}$.
+Let $(P_n)_{n\ge 0}$ be a sequence of projections and fix $N\ge 0$.
+Assume:
+\[
+\forall n\ge 0.\ \models \bigl[\Pi_{\,M_1^{(s)}\,P_n\,\bigl(M_1^{(s)}\bigr)^\dagger}\bigr]\ C\ [\ok:P_{n+1}]
+\]
+and
+\[
+\models \bigl[\Pi_{\,M_1^{(s)}\,P_N\,\bigl(M_1^{(s)}\bigr)^\dagger}\bigr]\ C\ [\er:Q].
+\]
+Then
+\[
+\models [P_0]\ W\ [\er:Q].
+\]
+\end{lemma}
+
+\begin{proof}
+Fix $\rho\in\Dsub{H}$ and assume $P_0\ua\rho$.
+Let $(\sigma_n)$ be defined as in Lemma~\ref{lem:Mix-while-decomp}.
+
+\smallskip\noindent
+\emph{Step 1: reach $P_N$ at loop head.}
+By the same induction as in the proof of Lemma~\ref{lem:sound-while1}, the first assumption implies
+\[
+P_n \ua \sigma_n\qquad\text{for all }n\ge 0,
+\]
+hence in particular $P_N\ua \sigma_N$.
+
+\smallskip\noindent
+\emph{Step 2: enter the error-triggering iteration.}
+From $P_N\ua\sigma_N$ and Lemma~\ref{lem:ua-kraus-prem} with $K=M_1^{(s)}$ we obtain
+\[
+\Pi_{\,M_1^{(s)}\,P_N\,\bigl(M_1^{(s)}\bigr)^\dagger}
+\ua
+M_1^{(s)}\,\sigma_N\,\bigl(M_1^{(s)}\bigr)^\dagger.
+\]
+Apply the second assumption (the error premise at level $N$) to the input
+$M_1^{(s)}\sigma_N(M_1^{(s)})^\dagger$ to get
+\[
+Q \ua \Mix_{\er}\!\Bigl(C,\ M_1^{(s)}\,\sigma_N\,\bigl(M_1^{(s)}\bigr)^\dagger\Bigr).
+\]
+
+\smallskip\noindent
+\emph{Step 3: embed into the loop's error mixture.}
+By Lemma~\ref{lem:Mix-while-decomp},
+\[
+\Mix_{\er}(W,\rho)
+=
+\sum_{n\ge 0}\Mix_{\er}\!\Bigl(C,\ M_1^{(s)}\,\sigma_n\,\bigl(M_1^{(s)}\bigr)^\dagger\Bigr),
+\]
+so the $n=N$ summand is $\sq$-below $\Mix_{\er}(W,\rho)$. By Lemma~\ref{lem:ua-state-mono},
+\[
+Q \ua \Mix_{\er}(W,\rho).
+\]
+This establishes strong validity of the While2 conclusion.
+\end{proof}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+\subsection{Completeness of the Logic}\label{subsec:qil-completeness}
+
+\begin{theorem}[Completeness]\label{thm:qil-complete}
+For any qwhile command $C$, exit condition $\epsilon\in\{\ok,\er\}$, and projections $P,Q$,
+\[
+\models [P]\ C\ [\epsilon:Q]\quad\Longrightarrow\quad \vdash [P]\ C\ [\epsilon:Q].
+\]
+\end{theorem}
+
+
+Although Theorem~\ref{thm:qil-complete} is often presented as an ``absolute'' completeness statement,
+its proper interpretation is the same as in classical Incorrectness Logic (IL): it is a \emph{relative}
+(or ``semantic'') completeness result, where the proof system is complete \emph{relative to} the
+chosen assertion domain and the availability of an oracle for semantic side conditions.
+
+The key point is that QIL does not take assertions to be a syntactic language of formulas with an
+independent proof theory (as classical Hoare logic typically does). Instead, assertions are
+\emph{semantic objects}---projections (subspaces) on the fixed Hilbert space $H$---and entailment
+between assertions is simply subspace inclusion (equivalently, the Löwner order on projections).
+Thus, completeness should be read as:
+
+\begin{quote}
+Every semantically valid under-approximate claim expressible \emph{at the projection/support level}
+can be derived using the QIL rules, assuming we can discharge the linear-algebraic side conditions
+(projection inclusion, support computations, and measurement-induced support updates).
+\end{quote}
+
+This is exactly analogous to the classical IL completeness story: IL is complete once one assumes
+that (i) assertions are expressive enough to denote the relevant sets of reachable states, and
+(ii) the underlying entailment checks are available (often idealized as an oracle). 
+QIL simply makes this ``oracle'' aspect more concrete: in finite dimension, these checks reduce to
+linear algebra.
+
+\noindent There are three distinct ``relativizations'' built into the QIL completeness claim:
+
+\smallskip\noindent
+\textit{(1) Relative to the assertion domain (projections).}
+QIL predicates capture only \emph{support} information: whether a state has nonzero component in a
+subspace. They intentionally forget quantitative weights. Consequently, QIL completeness does not
+mean ``all bugs'' are derivable; it means: all bugs that can be characterized as \emph{support-level}
+facts are derivable. In particular, if two programs produce output states with the same support but
+different probabilities, QIL cannot distinguish them, and no completeness theorem can change this
+because it is an expressiveness limitation of the assertion domain, not of the proof rules. 
+
+\smallskip\noindent
+\textit{(2) Relative to semantic side conditions (entailment and support computation).}
+Even with projections as assertions, several rules require side conditions of the form
+$P'\supseteq P$ or $Q\supseteq Q'$, and the operational meaning of conditionals/loops requires
+computing supports of mixtures (e.g.\ $\supp(M P M^\dagger)$ and $\supp(\Mix_\epsilon(C,\rho_P))$).
+A completeness theorem implicitly assumes that such inclusions and support computations are
+available (or can be carried out within the meta-theory). This is the direct analogue of assuming
+an ``assertion theory'' in Cook-style completeness: the proof system is complete once these semantic
+checks are not the bottleneck.
+
+\smallskip\noindent
+\textit{(3) Relative to the loop model and finiteness assumptions.}
+The while rules in QIL are formulated using an $\omega$-sequence of variants $(P_n)$, reflecting
+that a loop may iterate arbitrarily many times. In classical program logics this typically leads to
+completeness statements that are non-constructive (they quantify over an infinite family).
+A major contribution of the QIL development is to show that, in finite-dimensional quantum
+systems, this infinite family can be replaced by a \emph{bounded} family without losing completeness:
+the increasing chain of reachable support projections must stabilize once it cannot increase in rank,
+and the rank is bounded by $\dim(H)$. 
+Thus, for finite-dimensional $H$, one can replace \textsc{While1}/\textsc{While2} by bounded versions
+(with $N\le \dim(H)$) and retain soundness and completeness. 
+This is best viewed as a \emph{relative completeness with a finiteness hypothesis}: the bounded
+system is complete relative to the assumption that the program’s state space is finite-dimensional
+(as it is for standard qubit-register programs).
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+\end{document}

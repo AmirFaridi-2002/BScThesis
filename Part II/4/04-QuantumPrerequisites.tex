@@ -349,7 +349,7 @@ The following are equivalent:
 \end{enumerate}
 \end{lemma}
 
-\begin{lemma}[Support under unitary conjugation]\label{lem:supp-unitary}
+\begin{lemma}[]\label{lem:supp-unitary}
 If $U$ is unitary and $\rho\sqsupseteq 0$, then
 \[
 \supp(U\rho U^\dagger) \;=\; U\big(\supp(\rho)\big),
@@ -358,7 +358,7 @@ If $U$ is unitary and $\rho\sqsupseteq 0$, then
 \]
 \end{lemma}
 
-\begin{lemma}[Support of sums]\label{lem:supp-sum}
+\begin{lemma}[]\label{lem:supp-sum}
 If $\rho_1,\rho_2\sqsupseteq 0$, then
 \[
 \supp(\rho_1+\rho_2)
@@ -474,6 +474,15 @@ Quantum operations are closed under composition and tensoring with identities:
 \end{enumerate}
 \end{lemma}
 
+\begin{definition}
+For superoperators $\mathcal{E},\mathcal{F}:\LL(\mathcal{H})\to \LL(\mathcal{H})$, define
+\[
+\mathcal{E} \sq \mathcal{F}
+\quad\!\!\iff\quad
+\forall A\sqsupseteq 0,\ \mathcal{E}(A) \sq \mathcal{F}(A).
+\]
+\end{definition}
+
 \begin{theorem}[Kraus representation]\label{thm:kraus}
 A superoperator $\mathcal{E}:\LL(\mathcal{H})\to \LL(\mathcal{H})$ is completely positive
 iff there exist operators $E_1,\dots,E_m\in \LL(\mathcal{H})$ such that for all $\rho\in \LL(\mathcal{H})$,
@@ -522,12 +531,12 @@ Equivalently,
 
 The concrete matrix $J(\mathcal{E})$ depends on the chosen basis $\{\ket{i}\}$ through $\ket{\Omega}$,
 but changing basis conjugates $J(\mathcal{E})$ by a unitary on the second tensor factor.
-In particular, properties such as $J(\mathcal{E})\succeq 0$ and inequalities like
+In particular, properties such as $J(\mathcal{E})\sqsupseteq 0$ and inequalities like
 $J(\mathcal{E})\sqsubseteq J(\mathcal{F})$ do \emph{not} depend on the basis choice.
 
 \begin{theorem}[]\label{thm:choi-cp}
 A superoperator $\mathcal{E}:L(H)\to L(H)$ is completely positive iff
-$ J(\mathcal{E}) \succeq 0. $
+$ J(\mathcal{E}) \sqsupseteq 0. $
 \end{theorem}
 
 To connect the Choi matrix with TP/TNI conditions, recall that the transpose
@@ -552,7 +561,7 @@ and
 The Choi map respects the Löwner order (and will therefore be useful for monotone limits).
 
 \begin{lemma}[]\label{lem:choi-order}
-If $\mathcal{E}$ is a positive superoperator, then $J(\mathcal{E})\succeq 0$.
+If $\mathcal{E}$ is a positive superoperator, then $J(\mathcal{E})\sqsupseteq 0$.
 More generally, for superoperators $\mathcal{E},\mathcal{F}$:
 \[
   \mathcal{E}\sqsubseteq \mathcal{F}
@@ -565,7 +574,7 @@ If $(E_n)$ is an increasing chain of quantum operations, then by Lemma~\ref{lem:
 the Choi matrices $(J(E_n))$ form an increasing chain of PSD operators.
 By Lemma~\ref{lem:choi-tni}, $\Tr_1(J(E_n))\sqsubseteq \Id$, so $\Tr(J(E_n))=\Tr(\Tr_1(J(E_n)))\le \Tr(\Id)=d$.
 Thus the Choi matrices are increasing and uniformly trace-bounded, which (in finite dimension)
-guarantees existence of an operator limit $J=\lim_n J(E_n)\succeq 0$; the corresponding limit map
+guarantees existence of an operator limit $J=\lim_n J(E_n)\sqsupseteq 0$; the corresponding limit map
 $E$ is then CP (Choi's theorem) and TNI (Lemma~\ref{lem:choi-tni} by continuity of $\Tr_1$).
 This is exactly the mechanism used to justify that increasing limits preserve being a quantum operation.
 
@@ -840,7 +849,7 @@ Under-approximation turns this into a compositional rule: to show $P$ is achieva
 it suffices to show $P$ lies inside the span of supports of reachable components.
 
 \begin{lemma}[Conjunction/disjunction under under-approximation]
-Let $\rho \succeq 0$ and let $P,Q$ be projections.
+Let $\rho \sqsupseteq 0$ and let $P,Q$ be projections.
 \begin{enumerate}[label=(\roman*)]
 \item If $P \preceq \rho$ (or $Q \preceq \rho$), then $(P\wedge Q)\preceq \rho$.
 In particular, $P \preceq \rho$ and $Q \preceq \rho$ imply $(P\wedge Q)\preceq \rho$.
@@ -886,7 +895,7 @@ In particular, adding additional reachable components to a mixture cannot invali
 \end{lemma}
 
 \subsection{Wrap-up}\label{sec:wrapup-map}
-The prerequisites above support two complementary tracks that we will develop in subsequent sections/papers.
+The prerequisites above support two complementary tracks that we will develop in subsequent sections.
 
 \paragraph{Quantum Hoare Logic / CoqQ track.}
 We will treat (partial) density operators as program states (Definition~\ref{def:density}),

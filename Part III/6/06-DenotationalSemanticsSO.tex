@@ -89,12 +89,12 @@ Recall that a \emph{super-operator} on $H$ is a linear map
 $ \mathcal{E}: L(H) \to L(H). $
 Operationally, we will apply such maps to program states, i.e.\ to partial density operators
 \[
-  \Dsub{H} \;:=\; \{\rho\in L(H):\ \rho\succeq 0\ \wedge\ \Tr(\rho)\le 1\}.
+  \Dsub{H} \;:=\; \{\rho\in L(H):\ \rho\sqsupseteq 0\ \wedge\ \Tr(\rho)\le 1\}.
 \]
 The physically meaningful state transformers are those that are \emph{completely positive}
 and \emph{trace-nonincreasing}; these are commonly called \emph{quantum operations}.
 (Equivalently, they are exactly the maps admitting a Kraus form
-$\mathcal{E}(\rho)=\sum_i E_i \rho E_i^\dagger$ with $\sum_i E_i^\dagger E_i \preceq \Id$.)
+$\mathcal{E}(\rho)=\sum_i E_i \rho E_i^\dagger$ with $\sum_i E_i^\dagger E_i \sq \Id$.)
 We will define denotations as super-operators and then prove that the denotations are in fact quantum operations.
 
 We write $\den{C}$ for the denotation of a qwhile command $C$.
@@ -104,14 +104,13 @@ Formally, $\den{C}$ is a super-operator on $H$:
 \]
 and it restricts to a map $\Dsub{H}\to \Dsub{H}$.
 
-A central design principle is \emph{locality}:
-primitive commands mention a subsystem $s\subseteq\Reg$ and act only on $H_s$, leaving
+Primitive commands mention a subsystem $s\subseteq\Reg$ and act only on $H_s$, leaving
 $H_{\comp{s}}$ untouched. Denotationally, this is implemented using cylindrical extension.
 
 
 The denotation is defined by structural recursion on the syntax of $C$. Here we will use the same $\Cmd$ as defined 
 in the previous section, with a minor modification: we will use $\abort$ instead of $\error$, since abnormal terminations are not our focus here.
-\paragraph{Skip and error.}
+\paragraph{Skip and Abort.}
 $
   \den{\Skip}(\rho) \;:=\; \rho,
   \qquad
@@ -169,7 +168,7 @@ the overall output is the \emph{sum} (mixture) of the branch outputs:
   \den{\mathsf{if}\ (\square m.\ M_s=m\rightarrow C_m)\ \mathsf{fi}}(\rho)
   \;:=\;
   \sum_{m\in\mathsf{Out}(M_s)}
-  \den{C_m}\!\Bigl(M_m^{(s)}\,\rho\,\bigl(M_m^{(s)}\bigr)^\dagger\Bigr).
+  \den{C_m}\!\Bigl(M_m^{(s)}\,\rho\,\bigl(M_m^{(s)}\bigr)^\dagger\Bigr) = \den{C_m}\mathcal{I}(\rho).
 \]
 Each branch state $M_m^{(s)}\rho(M_m^{(s)})^\dagger$ is subnormalized; its trace equals the probability
 mass of obtaining outcome $m$ from the current partial state $\rho$.
@@ -210,12 +209,12 @@ if we observe $n$ consecutive outcomes $1$, the approximant forces nonterminatio
 $\mathsf{abort}$. Thus, $W^{(n)}$ captures exactly the contribution of executions that terminate
 within $n$ loop-iterations.
 
-Recall the Löwner order $\sq$ on Hermitian operators: $A\sq B$ iff $B-A\succeq 0$.
-It extends pointwise to super-operators by
+Recall the Löwner order $\sq$ on Hermitian operators: $A\sq B$ iff $B-A\sqsupseteq 0$.
+As defined earlier, it extends pointwise to super-operators by
 \[
   \mathcal{E}\sq \mathcal{F}
   \quad\!\!\iff\quad
-  \forall\rho\succeq 0,\ \mathcal{E}(\rho)\sq \mathcal{F}(\rho).
+  \forall\rho\sqsupseteq 0,\ \mathcal{E}(\rho)\sq \mathcal{F}(\rho).
 \]
 The approximants form an increasing chain in this order. Concretely, one can prove 
 for every $n \ge 0$ and every $\rho\in\Dsub{H}$ that $\den{W^{(n)}}(\rho)\sq \den{W^{(n+1)}}(\rho)$.
@@ -277,7 +276,7 @@ followed by classical control---acts on density operators by an operation of the
 \]
 possibly with a single Kraus operator (unitaries) or with a sum over branches (measurements and
 conditionals). This transformation is \emph{linear} in $\rho$ and is completely determined by the
-operators describing the physical action on the subsystem. Linearity is essential: it encodes the
+operators describing the physical action on the subsystem. Linearity encodes the
 principle that a mixed input state (a probabilistic mixture of preparations) is transformed by the
 program into the corresponding mixture of outputs. As a result, sequential composition and program
 equivalence reduce to ordinary algebra of linear maps:
@@ -321,7 +320,7 @@ If $E,F\in \QO(H)$, then $E\circ F\in \QO(H)$.
 \end{lemma}
 \begin{proof}
 \emph{CP:} $(E\circ F)\otimes I=(E\otimes I)\circ (F\otimes I)$, and composition of positive maps is positive.\\
-\emph{TNI:} for $A\succeq 0$,
+\emph{TNI:} for $A\sqsupseteq 0$,
 \[
 \Tr\bigl((E\circ F)(A)\bigr)=\Tr\bigl(E(F(A))\bigr)\le \Tr(F(A))\le \Tr(A).
 \]
@@ -333,14 +332,14 @@ Kraus form implies quantum operation. That is, if
 \[
 E(A)=\sum_i K_i A K_i^\dagger
 \qquad\text{and}\qquad
-\sum_i K_i^\dagger K_i \preceq I,
+\sum_i K_i^\dagger K_i \sq I,
 \]
 then $E$ is CP and TNI (hence $E\in \QO(H)$).
 \end{lemma}
 
 \begin{proof}
 \emph{CP:} immediate, since $E\otimes I$ has Kraus operators $\{K_i\otimes I\}$.\\
-\emph{TNI:} for $A\succeq 0$,
+\emph{TNI:} for $A\sqsupseteq 0$,
 \[
 \Tr(E(A))
 =\sum_i \Tr(K_i A K_i^\dagger)
@@ -350,15 +349,6 @@ then $E$ is CP and TNI (hence $E\in \QO(H)$).
 \]
 \end{proof}
 
-
-\begin{definition}[]
-For super-operators $E,F:\LL(H)\to \LL(H)$, define
-\[
-E \sq F
-\quad\Longleftrightarrow\quad
-\forall\, A\succeq 0,\;\; E(A)\sq F(A).
-\]
-\end{definition}
 
 \begin{theorem}\label{thm:A}
 For every qwhile command $C$, $\den{C}\in \QO(H)$.
@@ -370,10 +360,10 @@ $\mathcal{E}:L(H)\to L(H)$ that are completely positive (CP) and trace-nonincrea
 We prove the claim by structural induction on the syntax of $C$.
 
 \medskip\noindent
-\textit{Case 1: $C=\error$.}
-By definition, $\den{\error}(\rho)=0$ for all $\rho$. The zero map is CP (it preserves positivity
+\textit{Case 1: $C=\abort$.}
+By definition, $\den{\abort}(\rho)=0$ for all $\rho$. The zero map is CP (it preserves positivity
 even after tensoring with identities) and TNI since $\Tr(0)=0\le \Tr(\rho)$. Hence
-$\den{\error}\in\QO(H)$.
+$\den{\abort}\in\QO(H)$.
 
 \medskip\noindent
 \textit{Case 2: $C=\Skip$.}
@@ -461,7 +451,7 @@ operator). By IH, $\den{C_m}$ is CP, and composition preserves CP. Finally, a fi
 is CP. Hence the whole denotation is CP.
 
 \smallskip\noindent
-\emph{TNI.} Let $\rho\succeq 0$. Using IH (each $\den{C_m}$ is TNI),
+\emph{TNI.} Let $\rho\sqsupseteq 0$. Using IH (each $\den{C_m}$ is TNI),
 \[
 \Tr\!\Bigl(\den{C_m}\bigl(M_m^{(s)}\rho(M_m^{(s)})^\dagger\bigr)\Bigr)
 \;\le\;
@@ -513,17 +503,17 @@ Intuitively, $W^{(n)}$ accounts for executions that terminate within at most $n$
 so allowing $n{+}1$ iterations can only add additional terminating probability mass. Formally, one
 shows (by induction on $n$) that $E_n\sq E_{n+1}$ in the pointwise Löwner order on super-operators:
 \[
-E_n\sq E_{n+1}\quad:\!\!\iff\quad \forall \rho\succeq 0,\ E_n(\rho)\sq E_{n+1}(\rho).
+E_n\sq E_{n+1}\quad:\!\!\iff\quad \forall \rho\sqsupseteq 0,\ E_n(\rho)\sq E_{n+1}(\rho).
 \]
 
 
-\begin{lemma}[Approximants are nondecreasing]\label{lem:approx-nondecreasing}
+\begin{lemma}[]\label{lem:approx-nondecreasing}
 Let $W \equiv \mathsf{while}\ M'_s=1\ \mathsf{do}\ C_{\mathrm{body}}\ \mathsf{od}$ with
 $M'_s=\{M_0,M_1\}$ a two-outcome measurement on $H_s$, and let $W^{(n)}$ be the syntactic
 approximants as above. Write $E_n:=\den{W^{(n)}}$. Then $E_n\sq E_{n+1}$ for all $n\ge 0$, i.e.
 \[
 \forall n\ge 0,\qquad
-\forall \rho\succeq 0,\qquad
+\forall \rho\sqsupseteq 0,\qquad
 E_n(\rho)\ \sq\ E_{n+1}(\rho).
 \]
 \end{lemma}
@@ -544,7 +534,7 @@ E_{n+1}(\rho)
  \;+\;
  \bigl(E_n\circ \den{C_{\mathrm{body}}}\bigr)\!\Bigl(M_1^{(s)}\rho\bigl(M_1^{(s)}\bigr)^\dagger\Bigr).\label{eq:Enplus1-unfold}
 \end{align}
-Define two auxiliary (positive) maps on inputs $\rho\succeq 0$:
+Define two auxiliary (positive) maps on inputs $\rho\sqsupseteq 0$:
 \[
 T(\rho) := M_0^{(s)}\rho\bigl(M_0^{(s)}\bigr)^\dagger,
 \qquad
@@ -561,8 +551,8 @@ E_{n+2}(\rho)=T(\rho)+E_{n+1}\bigl(B(\rho)\bigr).
 
 \smallskip\noindent
 \emph{Positivity facts.}
-If $\rho\succeq 0$, then $T(\rho)\succeq 0$ because $\rho\mapsto M_0^{(s)}\rho(M_0^{(s)})^\dagger$
-is a (single-Kraus) CP map. Also $B(\rho)\succeq 0$ because $\rho\mapsto M_1^{(s)}\rho(M_1^{(s)})^\dagger$
+If $\rho\sqsupseteq 0$, then $T(\rho)\sqsupseteq 0$ because $\rho\mapsto M_0^{(s)}\rho(M_0^{(s)})^\dagger$
+is a (single-Kraus) CP map. Also $B(\rho)\sqsupseteq 0$ because $\rho\mapsto M_1^{(s)}\rho(M_1^{(s)})^\dagger$
 is CP and $\den{C_{\mathrm{body}}}$ is CP by the outer induction hypothesis on program structure
 (the body is a strict subcommand of the loop).
 
@@ -572,16 +562,16 @@ We prove $E_n\sq E_{n+1}$ for all $n$ by induction on $n$.
 
 \smallskip\noindent
 \underline{Base $n=0$.}
-$E_0=\den{W^{(0)}}=\den{\error}$, hence $E_0(\rho)=0$ for all $\rho$.
-Since $E_1(\rho)\succeq 0$ for all $\rho\succeq 0$ (by \eqref{eq:Enplus1-TB} with $n=0$),
+$E_0=\den{W^{(0)}}=\den{\abort}$, hence $E_0(\rho)=0$ for all $\rho$.
+Since $E_1(\rho)\sqsupseteq 0$ for all $\rho\sqsupseteq 0$ (by \eqref{eq:Enplus1-TB} with $n=0$),
 we have $E_0(\rho)=0\sq E_1(\rho)$.
 
 \smallskip\noindent
 \underline{Step.}
-Assume $E_n\sq E_{n+1}$, i.e.\ for all $X\succeq 0$, $E_n(X)\sq E_{n+1}(X)$.
+Assume $E_n\sq E_{n+1}$, i.e.\ for all $X\sqsupseteq 0$, $E_n(X)\sq E_{n+1}(X)$.
 We must show $E_{n+1}\sq E_{n+2}$.
 
-Fix any $\rho\succeq 0$. Then $B(\rho)\succeq 0$, so applying the induction hypothesis to
+Fix any $\rho\sqsupseteq 0$. Then $B(\rho)\sqsupseteq 0$, so applying the induction hypothesis to
 $X=B(\rho)$ yields
 \[
 E_n\bigl(B(\rho)\bigr)\ \sq\ E_{n+1}\bigl(B(\rho)\bigr).
@@ -602,26 +592,33 @@ Thus $E_n\sq E_{n+1}$ for all $n\ge 0$.
 Since each $E_n$ is CP and TNI and $(E_n)$ is nondecreasing, the pointwise supremum
 $E:=\bigsqcup_{n\ge 0} E_n$ exists (in finite dimension) and remains CP and TNI.
 Equivalently, $E$ is a quantum operation and is the least upper bound of the chain.
-
-\begin{lemma}[]\label{lem:limit-QO}
-Let $(E_n)_{n\ge 0}$ be a nondecreasing chain in $\QO(H)$, i.e.
+\begin{lemma}[Limit of a CP-increasing chain is a quantum operation]\label{lem:limit-QO}
+Let $(E_n)_{n\ge 0}$ be a sequence in $\QO(H)$ such that for every $n$,
 \[
-\forall n,\qquad E_n \sq E_{n+1}
-\quad\!\!\iff\quad
-\forall \rho\succeq 0,\ E_n(\rho)\sq E_{n+1}(\rho).
+E_{n+1}-E_n \text{ is completely positive.}
 \]
-Then the pointwise supremum
+(Equivalently, $E_n \sq_{\mathrm{cp}} E_{n+1}$ in the CP-order.)
+Then:
+\begin{enumerate}[label=(\roman*),leftmargin=*]
+\item For every $\rho\sqsupseteq 0$, the increasing sequence $(E_n(\rho))_{n\ge 0}$ has a supremum (equivalently a limit)
+in the Löwner order; define
 \[
-E \;:=\; \bigsqcup_{n\ge 0} E_n
+E(\rho)\;:=\;\bigsqcup_{n\ge 0} E_n(\rho)\;=\;\lim_{n\to\infty}E_n(\rho)\qquad(\rho\sqsupseteq 0).
 \]
-exists, is the least upper bound of the chain, and satisfies $E\in\QO(H)$ (hence $E$ is CP and TNI).
+\item The resulting linear map $E:L(H)\to L(H)$ belongs to $\QO(H)$ (i.e.\ $E$ is CP and TNI).
+\item Moreover, $E$ is the least upper bound of $(E_n)$ with respect to the pointwise order $\sq$:
+\[
+E=\bigsqcup_{n\ge 0} E_n\quad\text{in the sense that}\quad
+(\forall n,\ E_n\sq E)\ \text{and}\ (\forall F,\ (\forall n,\ E_n\sq F)\Rightarrow E\sq F).
+\]
+\end{enumerate}
 \end{lemma}
 
 \begin{proof}
-Because $H$ is finite-dimensional, we can use the Choi--Jamio\l kowski representation.
+Since $H$ is finite-dimensional, we use the Choi--Jamio\l kowski representation.
 
 \smallskip\noindent
-\emph{-Choi matrices and their order.}
+\emph{(1) Choi matrices and monotonicity.}
 Fix an orthonormal basis $\{\ket{i}\}_{i=1}^d$ of $H$ and let
 \[
 \ket{\Omega}:=\sum_{i=1}^d \ket{i}\otimes \ket{i}\in H\otimes H.
@@ -630,86 +627,81 @@ For a super-operator $\mathcal{E}:L(H)\to L(H)$ define its Choi matrix
 \[
 J(\mathcal{E}) \;:=\; (\mathcal{E}\otimes \Id)\bigl(\ket{\Omega}\!\bra{\Omega}\bigr)\ \in L(H\otimes H).
 \]
-We use the following standard facts (Choi's theorem and its trace characterization):
+We use the standard facts:
 \begin{itemize}[leftmargin=*]
-\item[] $\mathcal{E}$ is CP iff $J(\mathcal{E})\succeq 0$.
-\item[] $\mathcal{E}$ is TNI iff $\Tr_1\!\bigl(J(\mathcal{E})\bigr)\preceq \Id$,
-where $\Tr_1$ denotes the partial trace over the \emph{first} tensor factor of $H\otimes H$.
-\item[] The assignment $\mathcal{E}\mapsto J(\mathcal{E})$ is linear and injective, hence determines
-$\mathcal{E}$ uniquely from $J(\mathcal{E})$.
+\item[] $\mathcal{E}$ is CP iff $J(\mathcal{E})\sqsupseteq 0$.
+\item[] $\mathcal{E}$ is TNI iff $\Tr_1(J(\mathcal{E}))\sq \Id$, where $\Tr_1$ traces out the first factor.
+\item[] The map $\mathcal{E}\mapsto J(\mathcal{E})$ is linear and injective.
 \end{itemize}
+Write $J_n:=J(E_n)$. Since each $E_n$ is CP, $J_n\sqsupseteq 0$.
 
-Write $J_n:=J(E_n)$. Since each $E_n$ is CP, we have $J_n\succeq 0$ for all $n$.
-Moreover, $E_n\sq E_{n+1}$ implies $J_n\sq J_{n+1}$ because
+By assumption, $E_{n+1}-E_n$ is CP. Hence $(E_{n+1}-E_n)\otimes \Id$ is CP (in particular positive),
+and therefore
 \[
 J_{n+1}-J_n
 =
-\bigl((E_{n+1}-E_n)\otimes \Id\bigr)\bigl(\ket{\Omega}\!\bra{\Omega}\bigr)\succeq 0
+\bigl((E_{n+1}-E_n)\otimes \Id\bigr)\bigl(\ket{\Omega}\!\bra{\Omega}\bigr)\sqsupseteq 0.
 \]
-(the map $E_{n+1}-E_n$ is positive by definition of $\sq$, hence so is its tensor extension).
-Thus $(J_n)$ is an increasing sequence in the Löwner order.
+Thus $(J_n)$ is increasing in the Löwner order: $J_n\sq J_{n+1}$.
 
 \smallskip\noindent
-\emph{-boundedness and existence of the limit.}
-Each $E_n$ is TNI, so $\Tr_1(J_n)\preceq \Id$.
-Taking trace and using $\Tr(J_n)=\Tr(\Tr_1(J_n))$, we obtain a uniform trace bound:
+\emph{(2) Boundedness and existence of the limit Choi matrix.}
+Each $E_n$ is TNI, so $\Tr_1(J_n)\sq \Id$.
+Taking trace and using $\Tr(J_n)=\Tr(\Tr_1(J_n))$, we obtain the uniform bound
 \[
-\Tr(J_n)\;=\;\Tr(\Tr_1(J_n))\;\le\;\Tr(\Id)=d
-\qquad\text{for all }n.
+\Tr(J_n)=\Tr(\Tr_1(J_n))\le \Tr(\Id)=d\qquad\text{for all }n.
 \]
 Hence $(J_n)$ is an increasing sequence of PSD operators with uniformly bounded trace.
-In finite dimension this implies convergence: there exists a PSD operator $J$ such that
+In finite dimension, such a sequence converges: there exists $J\sqsupseteq 0$ such that
 \[
-J \;=\; \lim_{n\to\infty} J_n
+J=\lim_{n\to\infty}J_n
 \qquad\text{and}\qquad
-J_n \sq J \ \text{ for all }n.
+J_n\sq J\ \text{ for all }n.
 \]
-(One way to see this is that the eigenvalues of $J_n$ increase monotonically but their sum is bounded by $d$,
-so each eigenvalue converges; equivalently, the cone of PSD matrices is closed and increasing bounded
-sequences converge.)
 
 \smallskip\noindent
-\emph{-define $E$ by the limit Choi matrix.}
-By injectivity of the Choi representation, there is a unique linear map
-$E:L(H)\to L(H)$ such that
+\emph{(3) Define $E$ by the limit Choi matrix; $E$ is CP and TNI.}
+By injectivity of the Choi representation, there is a unique linear map $E:L(H)\to L(H)$ with
 \[
 J(E)=J.
 \]
-We claim $E$ is exactly the least upper bound $\bigsqcup_n E_n$.
-
-\smallskip\noindent
-\emph{-$E$ is CP and TNI.}
-Since $J\succeq 0$, Choi's theorem gives that $E$ is CP.
-Also, partial trace is continuous, so
+Since $J\sqsupseteq 0$, Choi's theorem implies $E$ is CP.
+Also partial trace is continuous, so
 \[
-\Tr_1(J) \;=\; \Tr_1\!\Bigl(\lim_{n\to\infty}J_n\Bigr)
-\;=\; \lim_{n\to\infty}\Tr_1(J_n)
-\;\preceq\; \Id,
+\Tr_1(J)=\Tr_1\!\Bigl(\lim_{n\to\infty}J_n\Bigr)
+=\lim_{n\to\infty}\Tr_1(J_n)\sq \Id,
 \]
-because each $\Tr_1(J_n)\preceq \Id$.
-Thus $E$ is TNI. Therefore $E\in\QO(H)$.
+because each $\Tr_1(J_n)\sq \Id$. Thus $E$ is TNI, hence $E\in\QO(H)$.
 
 \smallskip\noindent
-\emph{Step 5: $E$ is the least upper bound of $(E_n)$.}
-First, $E$ is an upper bound.
-Indeed, $J_n\sq J$ implies $J(E-E_n)=J-J_n\succeq 0$, hence $E-E_n$ is CP and therefore positive.
-Thus for all $\rho\succeq 0$,
+\emph{(4) Pointwise supremum and least-upper-bound property in the order $\sq$.}
+First, $E$ is an upper bound for $(E_n)$ in the pointwise order $\sq$.
+Indeed, $J-J_n\sqsupseteq 0$ implies $E-E_n$ is CP (hence positive), so for all $\rho\sqsupseteq 0$,
 \[
 E_n(\rho)\sq E(\rho),
 \]
 i.e.\ $E_n\sq E$.
 
-Second, $E$ is the \emph{least} upper bound.
-Let $F$ be any upper bound, so $E_n\sq F$ for all $n$.
-Then $J_n=J(E_n)\sq J(F)$ for all $n$, hence taking $n\to\infty$ yields
-$J=\lim_n J_n \sq J(F)$.
-Therefore $J(F-E)=J(F)-J(E)\succeq 0$, so $F-E$ is CP and $E\sq F$.
-This shows $E$ is the least upper bound.
+Next, we identify $E(\rho)$ as the pointwise supremum. Since $J_n\to J$ and the inverse Choi map is a linear
+isomorphism between finite-dimensional vector spaces, it is continuous; therefore for every $\rho\sqsupseteq 0$,
+\[
+E_n(\rho)\longrightarrow E(\rho).
+\]
+Because $(E_n(\rho))_{n\ge 0}$ is increasing in the Löwner order (as $E_{n+1}-E_n$ is positive),
+its limit equals its supremum:
+\[
+E(\rho)=\bigsqcup_{n\ge 0}E_n(\rho)\qquad(\rho\sqsupseteq 0).
+\]
 
-\smallskip\noindent
-Hence the pointwise supremum $E=\bigsqcup_{n\ge 0}E_n$ exists and belongs to $\QO(H)$.
+Finally, $E$ is the least upper bound in the pointwise order.
+Let $F$ be any upper bound, i.e.\ $E_n\sq F$ for all $n$. Then for each $\rho\sqsupseteq 0$,
+\[
+E_n(\rho)\sq F(\rho)\quad\forall n \ \Longrightarrow\ 
+\bigsqcup_{n\ge 0}E_n(\rho)\sq F(\rho).
+\]
+Using $E(\rho)=\bigsqcup_{n\ge 0}E_n(\rho)$, we obtain $E(\rho)\sq F(\rho)$ for all $\rho\sqsupseteq 0$, i.e.\ $E\sq F$.
+Hence $E=\bigsqcup_{n\ge 0}E_n$ in the sense of the pointwise order $\sq$.
 \end{proof}
-
 \smallskip\noindent
 Therefore the loop denotation (defined as this supremum) lies in $\QO(H)$.
 
@@ -738,7 +730,6 @@ Let $\bot$ be the zero super-operator:
 \]
 Then $\bot\sq E$ for every positive map $E$, hence $\bot$ is the least element of $(\QO(H),\sq)$.
 
-\paragraph{The loop functional.}
 
 Fix a loop command in qwhile notation:
 \[
@@ -776,7 +767,7 @@ Thus $\Phi(X)$ is CP.
 
 \smallskip\noindent
 \emph{TNI.}
-Let $\rho\succeq 0$. Using that $X$ is TNI and $\den{C_{\mathrm{body}}}$ is TNI
+Let $\rho\sqsupseteq 0$. Using that $X$ is TNI and $\den{C_{\mathrm{body}}}$ is TNI
 (Theorem~\ref{thm:A}), we obtain
 \begin{align*}
 \Tr(\Phi(X)(\rho))
@@ -806,7 +797,7 @@ So $\Phi(X)$ is TNI. Hence $\Phi(X)\in\QO(H)$.
 
 Let $(W^{(n)})_{n\ge 0}$ be the syntactic approximants for the loop $W$ defined earlier:
 \[
-W^{(0)} := \error,
+W^{(0)} := \abort,
 \qquad
 W^{(n+1)} :=
 \mathsf{if}\ (\square b.\ M'_s=b \rightarrow D_b)\ \mathsf{fi},
@@ -820,7 +811,7 @@ $E_0=\bot$ and $E_{n+1}=\Phi(E_n)$ for all $n\ge 0$.
 \end{lemma}
 
 \begin{proof}
-By denotation of $\error$, $E_0=\den{\error}=\bot$.
+By denotation of $\abort$, $E_0=\den{\abort}=\bot$.
 
 For the step, expand $E_{n+1}$ using the denotational clauses for \textsf{if}, \textsf{skip}, and
 sequencing:
@@ -885,7 +876,7 @@ So it remains to show
   \;=\;
   \bigsqcup_{n\ge 0}\Phi(E_n).
 \]
-Fix $\rho\succeq 0$. Write
+Fix $\rho\sqsupseteq 0$. Write
 \[
   T(\rho):=M_0^{(s)}\rho(M_0^{(s)})^\dagger,
   \qquad
@@ -911,7 +902,7 @@ But $T(\rho)+E_n(B(\rho))=\Phi(E_n)(\rho)$, hence
 \[
   \Phi(E)(\rho)=\bigsqcup_{n\ge 0}\Phi(E_n)(\rho).
 \]
-Since this holds for all $\rho\succeq 0$, we conclude $\Phi(E)=\bigsqcup_{n\ge 0}\Phi(E_n)$.
+Since this holds for all $\rho\sqsupseteq 0$, we conclude $\Phi(E)=\bigsqcup_{n\ge 0}\Phi(E_n)$.
 Combining with $\bigsqcup_{n\ge 0}\Phi(E_n)=\bigsqcup_{n\ge 0}E_{n+1}=E$, we obtain $\Phi(E)=E$.
 
 \smallskip\noindent
